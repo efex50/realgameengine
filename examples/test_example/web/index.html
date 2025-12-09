@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDL3 + wgpu</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1a2e; }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .info {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: #aaa;
+            font-family: system-ui, sans-serif;
+            font-size: 0.9rem;
+            background: rgba(0,0,0,0.7);
+            padding: 0.5rem;
+            border-radius: 4px;
+            z-index: 100;
+        }
+        .error {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff6b6b;
+            font-family: system-ui, sans-serif;
+            text-align: center;
+            padding: 2rem;
+            background: rgba(0,0,0,0.8);
+            border-radius: 8px;
+            max-width: 80%;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script type="module">
+        import init, { send_message } from "./pkg/test_example.js";
+
+        async function run() {
+            await init();
+            console.log("asğfmasfşkasmfaşk");
+            
+            // 1. Simple Variant (Start)
+            send_message("Start"); 
+        
+            // 2. Tuple Variant (SetFrameRate(f32))
+            // Rust tuple variants usually map to a specialized object key or array depending on config, 
+            // but the safest default for Enums in serde-wasm-bindgen is often:
+            // { "VariantName": value }
+            send_message({ "SetFrameRate": 60.0 });
+        
+            // 3. String Variant
+            send_message({ "Say": "Hello Rust!" });
+
+            // 4. Struct/Tuple Variant with multiple fields (SetCanvasId)
+            send_message({ "SetCanvasId": "my-canvas" });
+        }
+        run()
+    </script>
+</body>
+</html>
