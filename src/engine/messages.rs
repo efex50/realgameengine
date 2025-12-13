@@ -23,7 +23,7 @@ pub enum Message{
     Stop,
     Kill,
     Say(String),
-    
+    ChangeTitle(String),
     #[cfg(target_family = "wasm")]
     SetCanvasId(String),
     // for development
@@ -38,9 +38,10 @@ mod wasm_message_handler{
     use super::*;
     #[wasm_bindgen]
     pub fn send_message(message:JsValue) -> Result<(), JsValue>{
+        
         let message: Message = serde_wasm_bindgen::from_value(message)?;
         let mut msgs = PENDING_MESSAGES.lock().unwrap();
         msgs.push(message);
-        todo!()
+        Ok(())
     }
 }

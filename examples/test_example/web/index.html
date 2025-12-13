@@ -46,22 +46,10 @@
 
         async function run() {
             await init();
-            console.log("asğfmasfşkasmfaşk");
             
             // 1. Simple Variant (Start)
             send_message("Start"); 
-        
-            // 2. Tuple Variant (SetFrameRate(f32))
-            // Rust tuple variants usually map to a specialized object key or array depending on config, 
-            // but the safest default for Enums in serde-wasm-bindgen is often:
-            // { "VariantName": value }
-            send_message({ "SetFrameRate": 60.0 });
-        
-            // 3. String Variant
             send_message({ "Say": "Hello Rust!" });
-
-            // 4. Struct/Tuple Variant with multiple fields (SetCanvasId)
-            send_message({ "SetCanvasId": "my-canvas" });
         }
         run()
     </script>
