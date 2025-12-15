@@ -4,7 +4,7 @@ use once_cell::sync::Lazy;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::Closure;
 
-use crate::{engine::{messages::{Message, PENDING_MESSAGES}, window::GameWindow}, log::{Logger, NewDefaultLogger}};
+use crate::{engine::{messages::{Message, PENDING_MESSAGES}, window::GameWindow}, log::{Logger, NewDefaultLogger}, renderer::GraphicsContext};
 
 pub mod window;
 pub mod messages;
@@ -13,11 +13,6 @@ pub mod renderer;
 pub mod flags;
 
 
-#[cfg(target_family = "wasm")]
-pub static ENGINE:Lazy<Arc<Mutex<Engine>>> = Lazy::new(|| {
-    let a = Arc::new(Mutex::new(Engine::new("2")));
-    return a;
-});
 
 
 #[derive(Debug,PartialEq, Eq)]
@@ -30,11 +25,11 @@ pub enum EngineStatus{
     Kill,
 }
 
-
 pub struct Engine{
     pub window:GameWindow,
     status:EngineStatus,
     pub logger:Box<dyn Logger>,
+    pub graphics_context: Option<GraphicsContext>,
 }
 
 impl Engine {
@@ -48,6 +43,7 @@ impl Engine {
             window: w,
             status:EngineStatus::Uninited,
             logger:logger,
+            graphics_context:None,
         }        
     }
     pub fn handle_messages(&mut self){
@@ -80,8 +76,61 @@ impl Engine {
 
         msgs.clear();
     }
+
+    // YENİ: Async Grafik Bağlamı Başlatıcı
+    pub async fn init_graphics(&mut self) {
+        self.logger.info("Initializing Graphics Context...");
+        let graphics_context = GraphicsContext::new().await;
+        self.graphics_context = Some(graphics_context);
+        self.logger.info("Graphics Context Initialized!");
+        
+        // SurfaceManager'ı oluştur ve Window'a ata
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let sm = self.graphics_context.as_ref().unwrap().create_surface_manager(&self.window);
+            self.window.surface_manager = Some(sm);
+            self.logger.info("Window Surface Manager Initialized!");
+        }
+        
+        // WASM tarafında SurfaceManager'ı Engine'e bağlayabiliriz veya window'a atabiliriz
+        // Şimdilik native tarafına odaklanalım.
+    }
+
+
     pub fn tick(&mut self){
+                
         self.handle_messages();
+
+
+        // Çizim Mantığı:
+        if let Some(ref context) = self.graphics_context {
+            #[cfg(not(target_family = "wasm"))]
+            if let Some(ref mut sm) = self.window.surface_manager {
+                if let Err(e) = sm.render(&context.device, &context.queue) {
+                     // Hata yönetimi (SurfaceLost vb.)
+                     // self.logger.error(format!("Render error: {:?}", e));
+                }
+            }
+        }
+        /*
+        if let Some(message) = self.get_message() {
+            match message {
+                EngineMessage::WindowResized(w, h) => {
+                    #[cfg(not(target_family = "wasm"))]
+                    if let Some(ref context) = self.graphics_context {
+                        if let Some(ref mut sm) = self.window.surface_manager {
+                            sm.resize((w, h), &context.device);
+                        }
+                    }
+                },
+                // ...
+                _ => {}
+            }
+        }
+        */
+
+        
+        
     }
 
     /// takes ownership of the game and starts the game loop untill killed
@@ -120,8 +169,9 @@ impl Engine {
     }
 
 
-    //cfg(not(target_family = "wasm"))]
+    //#[cfg(not(target_family = "wasm"))]
     fn sdl_loop(&mut self) {
+        pollster::block_on(self.init_graphics());
         'main:loop {
             self.tick();
             std::thread::sleep(std::time::Duration::from_millis(10));

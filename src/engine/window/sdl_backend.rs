@@ -23,7 +23,7 @@ impl SdlWindow {
             .build()
             .unwrap();
         let sdl = Arc::new(Mutex::new(s));
-
+        
         Self{
             sdlctx: sdl,
             main_window: window,
@@ -34,6 +34,9 @@ impl SdlWindow {
 impl InnerWindow for SdlWindow {
     fn set_title(&mut self,title:String) {
         self.main_window.set_title(&title);
+    }
+    fn size(&self) -> (u32, u32) {
+        self.main_window.size()
     }
 }
 

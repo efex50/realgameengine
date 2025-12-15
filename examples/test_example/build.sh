@@ -14,7 +14,7 @@ target = \"%s\"\n"
 
 
 native_build="cargo build --release --bin native --features=\"native-bin,\$release\"  --target \$linux_target"
-native_run="cargo run -r --features=\"native-bin,\$release\" --bin native  --target \$linux_target"
+native_run="cargo run -r --features=\"\$release\" --bin native  --target \$linux_target"
 
 
 help_msg(){
@@ -44,7 +44,7 @@ case "$1" in
         fi
         case "$2" in
             run)
-                eval echo $native_run
+                eval $native_run
                 #cargo run -r --target x86_64-unknown-linux-gnu --bin native
             ;;
             *)
