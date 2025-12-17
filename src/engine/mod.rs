@@ -85,51 +85,31 @@ impl Engine {
         self.logger.info("Graphics Context Initialized!");
         
         // SurfaceManager'ı oluştur ve Window'a ata
-        #[cfg(not(target_family = "wasm"))]
         {
             let sm = self.graphics_context.as_ref().unwrap().create_surface_manager(&self.window);
             self.window.surface_manager = Some(sm);
             self.logger.info("Window Surface Manager Initialized!");
         }
         
-        // WASM tarafında SurfaceManager'ı Engine'e bağlayabiliriz veya window'a atabiliriz
-        // Şimdilik native tarafına odaklanalım.
     }
-
+    pub fn render(&mut self){
+        
+    }
 
     pub fn tick(&mut self){
                 
         self.handle_messages();
-
-
+        self.window.poll_events();
+        self.logger.as_mut().info("tick");
         // Çizim Mantığı:
         if let Some(ref context) = self.graphics_context {
-            #[cfg(not(target_family = "wasm"))]
             if let Some(ref mut sm) = self.window.surface_manager {
                 if let Err(e) = sm.render(&context.device, &context.queue) {
                      // Hata yönetimi (SurfaceLost vb.)
-                     // self.logger.error(format!("Render error: {:?}", e));
+                     self.logger.error(&format!("Render error: {:?}", e));
                 }
             }
         }
-        /*
-        if let Some(message) = self.get_message() {
-            match message {
-                EngineMessage::WindowResized(w, h) => {
-                    #[cfg(not(target_family = "wasm"))]
-                    if let Some(ref context) = self.graphics_context {
-                        if let Some(ref mut sm) = self.window.surface_manager {
-                            sm.resize((w, h), &context.device);
-                        }
-                    }
-                },
-                // ...
-                _ => {}
-            }
-        }
-        */
-
-        
         
     }
 

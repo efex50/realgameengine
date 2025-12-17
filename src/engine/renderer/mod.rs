@@ -16,6 +16,7 @@ pub struct SurfaceManager {
     surface: Surface<'static>,
     config: SurfaceConfiguration,
     pub size: (u32, u32),
+    render_pipeline: wgpu::RenderPipeline, // Pipeline eklendi
 }
 
 impl GraphicsContext {
@@ -105,11 +106,61 @@ impl SurfaceManager {
         };
 
         surface.configure(device, &config);
+        // --- Render Pipeline Oluşturma ---
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Shader"),
+            source: wgpu::ShaderSource::Wgsl(SHADER_SOURCE.into()),
+        });
+
+        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Render Pipeline Layout"),
+            bind_group_layouts: &[],
+            push_constant_ranges: &[],
+        });
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &[],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+            cache: None,
+        });
 
         Self {
             surface,
             config,
             size,
+            render_pipeline,
         }
     }
 
@@ -118,7 +169,6 @@ impl SurfaceManager {
             self.size = new_size;
             self.config.width = new_size.0;
             self.config.height = new_size.1;
-            // Surface'ı yeniden konfigüre ederken Device'a ihtiyacımız var
             self.surface.configure(device, &self.config); 
         }
     }
@@ -132,7 +182,7 @@ impl SurfaceManager {
         });
 
         {
-            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -153,6 +203,8 @@ impl SurfaceManager {
                 occlusion_query_set: None,
             });
             // Burada çizim komutları olacak (draw_model vb.)
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.draw(0..3, 0..1);
         }
 
         queue.submit(std::iter::once(encoder.finish()));
@@ -161,3 +213,25 @@ impl SurfaceManager {
         Ok(())
     }
 }
+
+
+const SHADER_SOURCE: &str = include_str!("../../../gsl/triangle_anim.wgsl");
+/*
+const SHADER_SOURCE: &str = r#"
+@vertex
+fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4<f32> {
+    var pos = array<vec2<f32>, 3>(
+        vec2<f32>(0.0, 0.5),
+        vec2<f32>(-0.5, -0.5),
+        vec2<f32>(0.5, -0.5)
+    );
+    return vec4<f32>(pos[in_vertex_index], 0.0, 1.0);
+}
+
+@fragment
+fn fs_main() -> @location(0) vec4<f32> {
+    // Kırmızı renk
+    return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+}
+"#;
+*/

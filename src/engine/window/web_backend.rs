@@ -28,6 +28,9 @@ impl InnerWindow for WebWindow{
     fn size(&self) -> (u32, u32) {
         todo!()
     }
+    fn poll_events(&mut self) {
+        todo!()
+    }
 }
 
 

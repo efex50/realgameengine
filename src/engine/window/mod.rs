@@ -7,7 +7,6 @@ pub mod web_backend;
 #[cfg(not(target_family = "wasm"))]
 pub mod sdl_backend;
 
-#[cfg(not(target_family = "wasm"))]
 use crate::engine::renderer::SurfaceManager;
 
 pub trait InnerWindow:Send + Sync + HasWindowHandle + HasDisplayHandle{
@@ -15,6 +14,7 @@ pub trait InnerWindow:Send + Sync + HasWindowHandle + HasDisplayHandle{
     fn set_canvas_id(&mut self,canvas_id:String);
     fn set_title(&mut self,title:String);
     fn size(&self) -> (u32, u32);
+    fn poll_events(&mut self);
 }
 unsafe impl Send for GameWindow {}
 unsafe impl Sync for GameWindow {}
@@ -22,8 +22,6 @@ unsafe impl Sync for GameWindow {}
 
 pub struct GameWindow{
     pub inner: Box<dyn InnerWindow>,
-    #[cfg(not(target_family = "wasm"))] 
-    // native için pencere yönetimi
     pub surface_manager: Option<SurfaceManager>,
 }
 
@@ -38,9 +36,11 @@ impl GameWindow {
         
         return Self {
             inner:Box::new(w),
-            #[cfg(not(target_family = "wasm"))]
             surface_manager: None, // Başlangıçta yok
         };
+    }
+    pub fn poll_events(&mut self ){
+        self.inner.poll_events();
     }
 
     
