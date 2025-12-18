@@ -10,6 +10,7 @@ use crate::engine::window::GameWindow;
 struct Uniforms {
     position: [f32; 2],
     time: f32,
+    _padding:u32,
 }
 
 impl Uniforms {
@@ -17,6 +18,7 @@ impl Uniforms {
         Self {
             position: [0.0, 0.0],
             time: 0.0,
+            _padding:0,
         }
     }
 }
@@ -258,6 +260,7 @@ impl SurfaceManager {
             // world objeleri ekle
             {
                 for obj in &world.objects{
+                    
                     self.uniforms.position = obj.position;
                     self.uniforms.time += 0.001;
 

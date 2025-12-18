@@ -1,10 +1,32 @@
+use std::sync::{Arc, Mutex, OnceLock};
+
 use serde::{Deserialize, Serialize};
 
 use crate::PENDING_MESSAGES;
 
 
+static GLOBAL_LOGGER: OnceLock<LoggerType> = OnceLock::new();
+pub type LoggerType = Arc<Mutex<dyn Logger>>;
 
-
+/// sets the global logger 
+/// 
+/// once set the logger its locked
+pub fn set_global_logger(logger:LoggerType){
+    GLOBAL_LOGGER.set(logger);
+}
+/// gets the global looger
+/// 
+/// if not found makes the default logger global logger
+pub fn get_global_logger() -> LoggerType{
+    
+    match GLOBAL_LOGGER.get().map(|logger_arc| logger_arc.clone()){
+        Some(s) => s,
+        None => {
+            set_global_logger(Arc::new(Mutex::new(NewDefaultLogger())));
+            get_global_logger()
+        },
+    }
+}
 
 
 pub trait Logger:Send + Sync{
@@ -51,12 +73,12 @@ impl From<String> for LogMsg {
 }
 
 #[allow(non_snake_case)]
-pub fn NewDefaultLogger()->Box<dyn Logger>{
+pub fn NewDefaultLogger()-> impl Logger{
     #[cfg(target_family = "wasm")]
     let l = web::Log;
     #[cfg(not(target_family = "wasm"))]
     let l = sdl3::Log;
-    Box::new(l)
+    l
 }
 
 #[cfg(target_family = "wasm")]

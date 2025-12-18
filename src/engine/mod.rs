@@ -4,7 +4,7 @@ use once_cell::sync::Lazy;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::Closure;
 
-use crate::{engine::{messages::{Message, PENDING_MESSAGES}, window::GameWindow}, log::{Logger, NewDefaultLogger}, renderer::GraphicsContext, world::EngineWorld};
+use crate::{engine::{messages::{Message, PENDING_MESSAGES}, window::GameWindow}, log::{Logger, NewDefaultLogger}, renderer::GraphicsContext, set_global_logger, world::EngineWorld};
 
 pub mod window;
 pub mod messages;
@@ -39,13 +39,16 @@ impl Engine {
 
         let w = GameWindow::new(title);
         let mut logger = NewDefaultLogger();
+        logger.info("engine initilazition finished");
+        
+        
+        set_global_logger(Arc::new(Mutex::new(NewDefaultLogger())));
         let world = EngineWorld::new();
         
-        logger.info("engine initilazition finished");
         Self {
             window: w,
             status:EngineStatus::Uninited,
-            logger:logger,
+            logger:Box::new(logger),
             graphics_context:None,
             world,
         }
