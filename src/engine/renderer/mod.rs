@@ -1,22 +1,45 @@
 // src/engine/renderer/mod.rs
 
 use wgpu::{Instance, Surface, Adapter, Device, Queue, SurfaceConfiguration, SurfaceCapabilities};
+use wgpu::util::DeviceExt; // create_buffer_init için gerekli
 use crate::engine::window::GameWindow;
 
-// 1. GLOBAL KISIM: Uygulama genelinde paylaşılan GPU kaynakları
+// Shader'daki Uniforms yapısıyla birebir eşleşmeli ve 16-byte hizalı olmalı
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct Uniforms {
+    position: [f32; 2],
+    time: f32,
+    _padding: u32, // WebGPU uniform buffer'ları genellikle 16-byte katları boyutunda olmalıdır
+}
+
+impl Uniforms {
+    fn new() -> Self {
+        Self {
+            position: [0.0, 0.0],
+            time: 0.0,
+            _padding: 0,
+        }
+    }
+}
+
 pub struct GraphicsContext {
     instance: Instance,
     adapter: Adapter,
-    pub device: Device, // Dışarıdan erişim için public yapalım
-    pub queue: Queue,   // Dışarıdan erişim için public yapalım
+    pub device: Device,
+    pub queue: Queue,
 }
 
-// 2. WINDOW KISMI: Her pencereye özel kaynaklar (Önceki Renderer'ın kalan parçası)
 pub struct SurfaceManager {
     surface: Surface<'static>,
     config: SurfaceConfiguration,
     pub size: (u32, u32),
-    render_pipeline: wgpu::RenderPipeline, // Pipeline eklendi
+    render_pipeline: wgpu::RenderPipeline,
+    
+    // YENİ EKLENENLER:
+    uniform_buffer: wgpu::Buffer,
+    bind_group: wgpu::BindGroup,
+    uniforms: Uniforms, // CPU tarafındaki veriyi tutmak için
 }
 
 impl GraphicsContext {
@@ -26,10 +49,9 @@ impl GraphicsContext {
             ..Default::default()
         });
 
-        // NOT: İlk adapter, SurfaceManager'a bağlanmadan alınmalıdır.
         let adapter = instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::default(),
-            compatible_surface: None, // Henüz Surface yok, adapter'ı alıyoruz
+            compatible_surface: None,
             force_fallback_adapter: false,
         }).await.expect("Uygun grafik adaptörü bulunamadı!");
 
@@ -49,7 +71,6 @@ impl GraphicsContext {
         Self { instance, adapter, device, queue }
     }
     
-    // Pencereye özel SurfaceManager'ı oluşturmak için metod
     pub fn create_surface_manager(&self, window: &GameWindow) -> SurfaceManager {
         SurfaceManager::new(&self.instance, &self.adapter, window, &self.device)
     }
@@ -59,35 +80,26 @@ impl SurfaceManager {
     fn new(instance: &Instance, adapter: &Adapter, window: &GameWindow, device: &Device) -> Self {
         let size = window.inner.size();
         
-        // Surface oluşturma (Önceki koddan)
         let surface = unsafe {
             #[cfg(target_arch = "wasm32")]
             {
-                // Web'de canvas'ı manuel bul
                 use wasm_bindgen::JsCast;
                 use wgpu::web_sys;
                 let win = web_sys::window().unwrap();
                 let doc = win.document().unwrap();
                 let canvas = doc.get_element_by_id("canvas")
-                    .expect("Canvas elementi bulunamadi! ID='canvas' oldugundan emin olun")
+                    .expect("Canvas elementi bulunamadi!")
                     .dyn_into::<web_sys::HtmlCanvasElement>()
                     .unwrap();
-                let surface = match instance.create_surface(wgpu::SurfaceTarget::Canvas(canvas.clone())) {
-                    Ok(s) => s,   
-                    Err(_) => panic!("canvas bulunamadı. todo fix this amk"),
-                };
-                
-                surface
+                instance.create_surface(wgpu::SurfaceTarget::Canvas(canvas)).unwrap()
             }
             #[cfg(not(target_arch = "wasm32"))]
             {
-                // Native'de HasWindowHandle kullan
                 let target = wgpu::SurfaceTargetUnsafe::from_window(window).unwrap();
                 instance.create_surface_unsafe(target).unwrap()
             }
         };
 
-        // Konfigürasyon (Önceki koddan)
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps.formats.iter()
             .copied()
@@ -97,8 +109,8 @@ impl SurfaceManager {
         let config = SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
-            width: size.0,
-            height: size.1,
+            width: size.0.max(1),
+            height: size.1.max(1),
             present_mode: surface_caps.present_modes[0],
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
@@ -106,7 +118,48 @@ impl SurfaceManager {
         };
 
         surface.configure(device, &config);
-        // --- Render Pipeline Oluşturma ---
+
+        // --- UNIFORM HAZIRLIĞI ---
+        let mut uniforms = Uniforms::new();
+        // İstersen burada başlangıç pozisyonu verebilirsin
+        uniforms.position = [0.0, 0.0]; 
+
+        let uniform_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Uniform Buffer"),
+                contents: bytemuck::cast_slice(&[uniforms]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        );
+
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX, // Hem vertex hem fragment kullanıyorsa VERTEX | FRAGMENT
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }
+            ],
+            label: Some("uniform_bind_group_layout"),
+        });
+
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniform_buffer.as_entire_binding(),
+                }
+            ],
+            label: Some("uniform_bind_group"),
+        });
+
+        // --- PIPELINE HAZIRLIĞI ---
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(SHADER_SOURCE.into()),
@@ -114,7 +167,7 @@ impl SurfaceManager {
 
         let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&bind_group_layout], // Layout burada ekleniyor
             push_constant_ranges: &[],
         });
 
@@ -123,7 +176,7 @@ impl SurfaceManager {
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: Some("vs_main"),
+                entry_point: Some("vs_main"), // Option<str> oldu yeni versiyonlarda
                 buffers: &[],
                 compilation_options: Default::default(),
             },
@@ -138,7 +191,7 @@ impl SurfaceManager {
                 compilation_options: Default::default(),
             }),
             primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
+                topology: wgpu::PrimitiveTopology::TriangleStrip,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: Some(wgpu::Face::Back),
@@ -152,6 +205,7 @@ impl SurfaceManager {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
+
             multiview: None,
             cache: None,
         });
@@ -161,6 +215,9 @@ impl SurfaceManager {
             config,
             size,
             render_pipeline,
+            uniform_buffer,
+            bind_group,
+            uniforms,
         }
     }
 
@@ -177,6 +234,12 @@ impl SurfaceManager {
         let output = self.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
+        // Animasyon için zamanı güncelle
+        self.uniforms.time += 0.01; 
+        
+        // GPU'ya yeni veriyi yükle
+        queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[self.uniforms]));
+
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });
@@ -188,12 +251,7 @@ impl SurfaceManager {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1, // Arka plan rengi (Mavi tonu)
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK ),
                         store: wgpu::StoreOp::Store,
                     },
                     depth_slice: None,
@@ -202,8 +260,10 @@ impl SurfaceManager {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            // Burada çizim komutları olacak (draw_model vb.)
+
             render_pass.set_pipeline(&self.render_pipeline);
+            // Binding'i (Group 0) pipeline'a bağla
+            render_pass.set_bind_group(0, &self.bind_group, &[]); 
             render_pass.draw(0..3, 0..1);
         }
 
@@ -214,24 +274,5 @@ impl SurfaceManager {
     }
 }
 
-
+// Dosya yolu structure'a göre ayarlanmalı. Eğer proje kökünden çalışıyorsan bu yol doğru olabilir.
 const SHADER_SOURCE: &str = include_str!("../../../gsl/triangle_anim.wgsl");
-/*
-const SHADER_SOURCE: &str = r#"
-@vertex
-fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4<f32> {
-    var pos = array<vec2<f32>, 3>(
-        vec2<f32>(0.0, 0.5),
-        vec2<f32>(-0.5, -0.5),
-        vec2<f32>(0.5, -0.5)
-    );
-    return vec4<f32>(pos[in_vertex_index], 0.0, 1.0);
-}
-
-@fragment
-fn fs_main() -> @location(0) vec4<f32> {
-    // Kırmızı renk
-    return vec4<f32>(1.0, 0.0, 0.0, 1.0);
-}
-"#;
-*/

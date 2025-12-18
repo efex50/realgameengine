@@ -1,9 +1,9 @@
 use std::sync::{Arc, Mutex};
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
-use sdl3::EventPump;
+use sdl3::{EventPump, VideoSubsystem, pixels::Color};
 
-use crate::engine::{window::{InnerWindow, sdl_backend}};
+use crate::{PENDING_MESSAGES, engine::window::{InnerWindow, sdl_backend}};
 pub type SdlContext = Arc<Mutex<sdl3::Sdl>>;
 
 
@@ -19,8 +19,11 @@ pub struct SdlWindow{
 
 impl SdlWindow {
     pub fn new(title:String) -> Self {
+        sdl3::hint::set("SDL_VIDEO_WAYLAND_PREFER_LIBDECOR", "0");
+        sdl3::log::set_log_priorities(sdl3::log::Priority::Verbose);
+        
+        
         let s = sdl3::init().unwrap();
-
         let video = s.video().unwrap();
         let window: sdl3::video::Window = video
             .window(title.as_str(), 800, 600)
@@ -28,6 +31,8 @@ impl SdlWindow {
             .resizable()
             .build()
             .unwrap();
+
+
         let pump = s.event_pump().unwrap();
         let sdl = Arc::new(Mutex::new(s));
         Self{
@@ -50,6 +55,15 @@ impl InnerWindow for SdlWindow {
         if let Some(ref mut pump_wrapper) = self.event_pump{
             // Olayları tüket (pump) ki OS pencerenin donduğunu sanmasın
             for _event in pump_wrapper.0.poll_iter() {
+                match _event {
+                    sdl3::event::Event::Quit { timestamp } => {
+                        let mut msgs = PENDING_MESSAGES.lock().unwrap();
+                        msgs.push(crate::Message::Kill);
+                        msgs.push(crate::Message::Log(crate::LogMsg::Warn("Killing the game".to_string())));
+                    },
+
+                    _ => ()
+                }
                 // Burada ileride klavye/mouse eventlerini işleyebilirsin
                 // Örn: Message::KeyDown gönderilebilir
             }

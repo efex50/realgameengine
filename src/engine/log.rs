@@ -1,12 +1,54 @@
+use serde::{Deserialize, Serialize};
+
+use crate::PENDING_MESSAGES;
+
+
+
+
+
 
 pub trait Logger:Send + Sync{
     fn info(&mut self,log:&str );
     fn warn(&mut self,log:&str );
     fn error(&mut self,log:&str );
     fn alert(&mut self,log:&str );
+    fn log(&mut self,log:&LogMsg);
 }
-
-
+#[derive(Debug,Serialize,Deserialize)]
+pub enum LogMsg{
+    Info(String),
+    Warn(String),
+    Alert(String),
+    Error(String),
+}
+impl LogMsg {
+    pub fn get_msg(&self) -> String{
+        match self {
+            LogMsg::Info(a) => format!("info:{}",a),
+            LogMsg::Warn(a) => format!("warn:{}",a),
+            LogMsg::Alert(a) => format!("alert:{}",a),
+            LogMsg::Error(a) => format!("error:{}",a),
+        }
+    }
+    pub fn get_inner(&self) -> String{
+        match self {
+            LogMsg::Info(a) => a.to_string(),
+            LogMsg::Warn(a) => a.to_string(),
+            LogMsg::Alert(a) => a.to_string(),
+            LogMsg::Error(a) => a.to_string(),
+        }
+    }
+}
+impl From<&str> for LogMsg {
+    fn from(value: &str) -> Self {
+        Self::Info(value.to_string())
+    }
+}
+impl From<String> for LogMsg {
+    fn from(v: String) -> Self {
+        Self::Info(v)
+    }
+}
 
 #[allow(non_snake_case)]
 pub fn NewDefaultLogger()->Box<dyn Logger>{
@@ -95,6 +137,15 @@ mod sdl3{
             let msg = CString::new(log).unwrap();
             unsafe {
                 SDL_Log(msg.as_ptr());
+            }
+        }
+        
+        fn log(&mut self,log:&super::LogMsg) {
+            match log {
+                super::LogMsg::Info(_) => self.info(&log.get_msg()),
+                super::LogMsg::Warn(_) => self.warn(&log.get_msg()),
+                super::LogMsg::Alert(_) => self.alert(&log.get_msg()),
+                super::LogMsg::Error(_) => self.error(&log.get_msg()),
             }
         }
     }

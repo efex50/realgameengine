@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use once_cell::sync::Lazy;
 
+use crate::LogMsg;
+
 pub type MessageVecType = Lazy<Arc<Mutex<Vec<Message>>>>;
 
 pub static PENDING_MESSAGES:MessageVecType = Lazy::new(||{
@@ -22,6 +24,7 @@ pub enum Message{
     Start,
     Stop,
     Kill,
+    Log(LogMsg),
     Say(String),
     ChangeTitle(String),
     #[cfg(target_family = "wasm")]

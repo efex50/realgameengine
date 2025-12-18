@@ -54,7 +54,7 @@ impl Engine {
                 Message::SetCanvasId(s) => {
                     self.window.inner.set_canvas_id(s.clone());
                 }
-                Message::Null => todo!(),
+                Message::Null => (),
                 Message::Say(msg) =>{
                     self.logger.info(msg);
                 },
@@ -70,6 +70,9 @@ impl Engine {
                 Message::SetFrameRate(_) => todo!(),
                 Message::ChangeTitle(tit) => {
                     self.window.inner.set_title(tit.to_string());
+                },
+                Message::Log(log_msg) => {
+                    self.logger.log(log_msg);
                 },
             }
         }
@@ -100,7 +103,6 @@ impl Engine {
                 
         self.handle_messages();
         self.window.poll_events();
-        self.logger.as_mut().info("tick");
         // Çizim Mantığı:
         if let Some(ref context) = self.graphics_context {
             if let Some(ref mut sm) = self.window.surface_manager {
@@ -156,6 +158,20 @@ impl Engine {
             self.tick();
             std::thread::sleep(std::time::Duration::from_millis(10));
             if self.status == EngineStatus::Stopped { break 'main; }
+
+
+
+
+            match self.status {
+                EngineStatus::Uninited |
+                EngineStatus::Initializing |
+                EngineStatus::Ready |
+                EngineStatus::Stopped |
+                EngineStatus::Running => {},
+                EngineStatus::Kill => {
+                    std::process::exit(0)
+                },
+            }
         }
     }
 }

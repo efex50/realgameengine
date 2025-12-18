@@ -13,7 +13,7 @@ change_dev="[build]
 target = \"%s\"\n"
 
 
-native_build="cargo build --release --bin native --features=\"native-bin,\$release\"  --target \$linux_target"
+native_build="cargo build --release --bin native --features=\"\$release\"  --target \$linux_target"
 native_run="cargo run -r --features=\"\$release\" --bin native  --target \$linux_target"
 
 
