@@ -4,14 +4,14 @@ use once_cell::sync::Lazy;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::Closure;
 
-use crate::{engine::{messages::{Message, PENDING_MESSAGES}, window::GameWindow}, log::{Logger, NewDefaultLogger}, renderer::GraphicsContext};
+use crate::{engine::{messages::{Message, PENDING_MESSAGES}, window::GameWindow}, log::{Logger, NewDefaultLogger}, renderer::GraphicsContext, world::EngineWorld};
 
 pub mod window;
 pub mod messages;
 pub mod log;
 pub mod renderer;
 pub mod flags;
-
+pub mod world;
 
 
 
@@ -30,6 +30,7 @@ pub struct Engine{
     status:EngineStatus,
     pub logger:Box<dyn Logger>,
     pub graphics_context: Option<GraphicsContext>,
+    pub world : EngineWorld,
 }
 
 impl Engine {
@@ -38,13 +39,16 @@ impl Engine {
 
         let w = GameWindow::new(title);
         let mut logger = NewDefaultLogger();
-        logger.info("starting the engine");
+        let world = EngineWorld::new();
+        
+        logger.info("engine initilazition finished");
         Self {
             window: w,
             status:EngineStatus::Uninited,
             logger:logger,
             graphics_context:None,
-        }        
+            world,
+        }
     }
     pub fn handle_messages(&mut self){
         let mut msgs = PENDING_MESSAGES.lock().unwrap();
@@ -106,7 +110,7 @@ impl Engine {
         // Çizim Mantığı:
         if let Some(ref context) = self.graphics_context {
             if let Some(ref mut sm) = self.window.surface_manager {
-                if let Err(e) = sm.render(&context.device, &context.queue) {
+                if let Err(e) = sm.render(&context.device, &context.queue,&self.world) {
                      // Hata yönetimi (SurfaceLost vb.)
                      self.logger.error(&format!("Render error: {:?}", e));
                 }

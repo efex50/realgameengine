@@ -10,7 +10,6 @@ use crate::engine::window::GameWindow;
 struct Uniforms {
     position: [f32; 2],
     time: f32,
-    _padding: u32, // WebGPU uniform buffer'ları genellikle 16-byte katları boyutunda olmalıdır
 }
 
 impl Uniforms {
@@ -18,7 +17,6 @@ impl Uniforms {
         Self {
             position: [0.0, 0.0],
             time: 0.0,
-            _padding: 0,
         }
     }
 }
@@ -230,15 +228,10 @@ impl SurfaceManager {
         }
     }
 
-    pub fn render(&mut self, device: &Device, queue: &Queue) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(&mut self, device: &Device, queue: &Queue, world: &crate::engine::world::EngineWorld) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Animasyon için zamanı güncelle
-        self.uniforms.time += 0.01; 
-        
-        // GPU'ya yeni veriyi yükle
-        queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[self.uniforms]));
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
@@ -262,9 +255,19 @@ impl SurfaceManager {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            // Binding'i (Group 0) pipeline'a bağla
-            render_pass.set_bind_group(0, &self.bind_group, &[]); 
-            render_pass.draw(0..3, 0..1);
+            // world objeleri ekle
+            {
+                for obj in &world.objects{
+                    self.uniforms.position = obj.position;
+                    self.uniforms.time += 0.001;
+
+                    queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[self.uniforms]));
+
+                    // Binding'i (Group 0) pipeline'a bağla
+                    render_pass.set_bind_group(0, &self.bind_group, &[]);
+                    render_pass.draw(0..3, 0..1);
+                }
+            }
         }
 
         queue.submit(std::iter::once(encoder.finish()));
