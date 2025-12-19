@@ -39,7 +39,7 @@ impl Engine {
 
         let w = GameWindow::new(title);
         let mut logger = NewDefaultLogger();
-        logger.info("engine initilazition finished");
+        logger.info("engine building finished");
         
         
         set_global_logger(Arc::new(Mutex::new(NewDefaultLogger())));

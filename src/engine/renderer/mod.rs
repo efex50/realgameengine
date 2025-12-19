@@ -258,18 +258,25 @@ impl SurfaceManager {
 
             render_pass.set_pipeline(&self.render_pipeline);
             // world objeleri ekle
+            // todo sadece her frame bir objeyi renderlıyo ve ötekine geçiyo
             {
-                for obj in &world.objects{
+                static mut OBJID:usize = 0;
+                let obj = unsafe{
+                    let obj = &world.objects[OBJID];
+                    match OBJID {
+                        0 => OBJID = 1,
+                        1 => OBJID = 0,
+                        _ =>()
+                    };
+                    obj
+                };
                     
-                    self.uniforms.position = obj.position;
-                    self.uniforms.time += 0.001;
-
-                    queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[self.uniforms]));
-
-                    // Binding'i (Group 0) pipeline'a bağla
-                    render_pass.set_bind_group(0, &self.bind_group, &[]);
-                    render_pass.draw(0..3, 0..1);
-                }
+                self.uniforms.position = obj.position;
+                self.uniforms.time += 0.001;
+                queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[self.uniforms]));
+                // Binding'i (Group 0) pipeline'a bağla
+                render_pass.set_bind_group(0, &self.bind_group, &[]);
+                render_pass.draw(0..3, 0..1);
             }
         }
 

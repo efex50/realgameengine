@@ -29,7 +29,7 @@ pub fn get_global_logger() -> LoggerType{
 }
 
 
-pub trait Logger:Send + Sync{
+pub trait Logger:Send + Sync{    
     fn info(&mut self,log:&str );
     fn warn(&mut self,log:&str );
     fn error(&mut self,log:&str );
