@@ -2,7 +2,9 @@
 
 use wgpu::{Instance, Surface, Adapter, Device, Queue, SurfaceConfiguration, SurfaceCapabilities};
 use wgpu::util::DeviceExt; // create_buffer_init için gerekli
-use crate::engine::window::GameWindow;
+use crate::engine::window::GameWindowManager;
+
+
 
 // Shader'daki Uniforms yapısıyla birebir eşleşmeli ve 16-byte hizalı olmalı
 #[repr(C)]
@@ -32,7 +34,7 @@ pub struct GraphicsContext {
 
 pub struct SurfaceManager {
     surface: Surface<'static>,
-    config: SurfaceConfiguration,
+    pub config: SurfaceConfiguration,
     pub size: (u32, u32),
     render_pipeline: wgpu::RenderPipeline,
     
@@ -71,13 +73,13 @@ impl GraphicsContext {
         Self { instance, adapter, device, queue }
     }
     
-    pub fn create_surface_manager(&self, window: &GameWindow) -> SurfaceManager {
+    pub fn create_surface_manager(&self, window: &GameWindowManager) -> SurfaceManager {
         SurfaceManager::new(&self.instance, &self.adapter, window, &self.device)
     }
 }
 
 impl SurfaceManager {
-    fn new(instance: &Instance, adapter: &Adapter, window: &GameWindow, device: &Device) -> Self {
+    fn new(instance: &Instance, adapter: &Adapter, window: &GameWindowManager, device: &Device) -> Self {
         let size = window.inner.size();
         
         let surface = unsafe {
@@ -230,7 +232,7 @@ impl SurfaceManager {
         }
     }
 
-    pub fn render(&mut self, device: &Device, queue: &Queue, world: &crate::engine::world::EngineWorld) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(&mut self, device: &Device, queue: &Queue, engine: &crate::engine::EngineState) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -259,7 +261,7 @@ impl SurfaceManager {
             render_pass.set_pipeline(&self.render_pipeline);
             // world objeleri ekle
             {
-                for obj in &world.objects{
+                for obj in &engine.world.objects{
                     
                     self.uniforms.position = obj.position;
                     self.uniforms.time += 0.001;

@@ -49,7 +49,11 @@
             
             // 1. Simple Variant (Start)
             send_message("Start"); 
-            send_message({ "Say": "Hello Rust!" });
+            console.log("prepering")
+            setInterval(() => {
+                send_message({ "Say": "Hello Rust!" });
+                
+            }, 500);
         }
         run()
     </script>

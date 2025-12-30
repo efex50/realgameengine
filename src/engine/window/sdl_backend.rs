@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use sdl3::{EventPump, VideoSubsystem, pixels::Color};
 
-use crate::{PENDING_MESSAGES, engine::window::{InnerWindow, sdl_backend}};
+use crate::{PENDING_MESSAGES, engine::window::{InnerWindow, sdl_backend}, global_warn, send_message};
 pub type SdlContext = Arc<Mutex<sdl3::Sdl>>;
 
 
@@ -11,13 +11,13 @@ struct SendEventPump(EventPump);
 unsafe impl Send for SendEventPump {}
 unsafe impl Sync for SendEventPump {}
 
-pub struct SdlWindow{
+pub struct SdlWindowManager{
     sdlctx:SdlContext,
     main_window:sdl3::video::Window,
     event_pump:Option<SendEventPump>
 }
 
-impl SdlWindow {
+impl SdlWindowManager {
     pub fn new(title:String) -> Self {
         sdl3::hint::set("SDL_VIDEO_WAYLAND_PREFER_LIBDECOR", "0");
         sdl3::log::set_log_priorities(sdl3::log::Priority::Verbose);
@@ -43,7 +43,7 @@ impl SdlWindow {
     }
 }
 
-impl InnerWindow for SdlWindow {
+impl InnerWindow for SdlWindowManager {
     fn set_title(&mut self,title:String) {
         self.main_window.set_title(&title);        
     }
@@ -57,9 +57,8 @@ impl InnerWindow for SdlWindow {
             for _event in pump_wrapper.0.poll_iter() {
                 match _event {
                     sdl3::event::Event::Quit { timestamp } => {
-                        let mut msgs = PENDING_MESSAGES.lock().unwrap();
-                        msgs.push(crate::Message::Kill);
-                        msgs.push(crate::Message::Log(crate::LogMsg::Warn("Killing the game".to_string())));
+                        send_message(crate::Message::Kill);
+                        global_warn("warn: killing the game");
                     },
 
                     _ => ()
@@ -73,16 +72,16 @@ impl InnerWindow for SdlWindow {
 }
 
 
-unsafe impl Send for SdlWindow {}
-unsafe impl Sync for SdlWindow {}
+unsafe impl Send for SdlWindowManager {}
+unsafe impl Sync for SdlWindowManager {}
 
-impl HasDisplayHandle for SdlWindow {
+impl HasDisplayHandle for SdlWindowManager {
     fn display_handle(&self) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
         self.main_window.display_handle()
     }
 }
 
-impl HasWindowHandle for SdlWindow {
+impl HasWindowHandle for SdlWindowManager {
     fn window_handle(&self) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
         self.main_window.window_handle()
     }

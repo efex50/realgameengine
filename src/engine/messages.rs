@@ -15,9 +15,12 @@ pub static PENDING_MESSAGES:MessageVecType = Lazy::new(||{
     return v
 });
 
+pub fn send_message(msg:Message){
+    let mut msgs = PENDING_MESSAGES.lock().unwrap();
+    msgs.push(msg);
+}
 
 
-#[cfg_attr(target_family = "wasm", derive(TS))]
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Message{
     SetFrameRate(f32),

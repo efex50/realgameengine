@@ -4,7 +4,8 @@ use once_cell::sync::Lazy;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::Closure;
 
-use crate::{engine::{messages::{Message, PENDING_MESSAGES}, window::GameWindow}, log::{Logger, NewDefaultLogger}, renderer::GraphicsContext, set_global_logger, world::EngineWorld};
+use crate::{engine::{messages::{Message, PENDING_MESSAGES}, window::GameWindowManager}, log::{Logger, NewDefaultLogger}, renderer::GraphicsContext, set_global_logger, world::EngineWorld};
+
 
 pub mod window;
 pub mod messages;
@@ -12,6 +13,7 @@ pub mod log;
 pub mod renderer;
 pub mod flags;
 pub mod world;
+pub mod thread_pool;
 
 
 
@@ -25,41 +27,53 @@ pub enum EngineStatus{
     Kill,
 }
 
+pub struct EngineState{
+    pub world : EngineWorld,
+
+}
+
 pub struct Engine{
-    pub window:GameWindow,
+    pub windows:GameWindowManager,
     status:EngineStatus,
     pub logger:Box<dyn Logger>,
     pub graphics_context: Option<GraphicsContext>,
-    pub world : EngineWorld,
+    pub state:EngineState
 }
-
 impl Engine {
     pub fn new<S:Into<String>>(title:S) -> Self {
         let title = title.into();
 
-        let w = GameWindow::new(title);
+        #[cfg(target_family = "wasm")]
+        {
+            std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+        }
+        let w = GameWindowManager::new(title);
         let mut logger = NewDefaultLogger();
         logger.info("engine initilazition finished");
         
         
-        set_global_logger(Arc::new(Mutex::new(NewDefaultLogger())));
         let world = EngineWorld::new();
         
+        let state = EngineState{
+            world
+        };
+
         Self {
-            window: w,
+            windows: w,
             status:EngineStatus::Uninited,
             logger:Box::new(logger),
             graphics_context:None,
-            world,
+            state,
         }
     }
+    
     pub fn handle_messages(&mut self){
         let mut msgs = PENDING_MESSAGES.lock().unwrap();
         for x in msgs.iter(){
             match x {
                 #[cfg(target_family = "wasm")]
                 Message::SetCanvasId(s) => {
-                    self.window.inner.set_canvas_id(s.clone());
+                    self.windows.inner.set_canvas_id(s.clone());
                 }
                 Message::Null => (),
                 Message::Say(msg) =>{
@@ -74,9 +88,11 @@ impl Engine {
                 Message::Kill => {
                     self.status = EngineStatus::Kill; 
                 }
-                Message::SetFrameRate(_) => todo!(),
+                Message::SetFrameRate(_) => {
+                    
+                },
                 Message::ChangeTitle(tit) => {
-                    self.window.inner.set_title(tit.to_string());
+                    self.windows.inner.set_title(tit.to_string());
                 },
                 Message::Log(log_msg) => {
                     self.logger.log(log_msg);
@@ -96,8 +112,8 @@ impl Engine {
         
         // SurfaceManager'ı oluştur ve Window'a ata
         {
-            let sm = self.graphics_context.as_ref().unwrap().create_surface_manager(&self.window);
-            self.window.surface_manager = Some(sm);
+            let sm = self.graphics_context.as_ref().unwrap().create_surface_manager(&self.windows);
+            self.windows.surface_manager = Some(sm);
             self.logger.info("Window Surface Manager Initialized!");
         }
         
@@ -105,15 +121,15 @@ impl Engine {
     pub fn render(&mut self){
         
     }
-
+    
     pub fn tick(&mut self){
                 
         self.handle_messages();
-        self.window.poll_events();
+        self.windows.poll_events();
         // Çizim Mantığı:
         if let Some(ref context) = self.graphics_context {
-            if let Some(ref mut sm) = self.window.surface_manager {
-                if let Err(e) = sm.render(&context.device, &context.queue,&self.world) {
+            if let Some(ref mut sm) = self.windows.surface_manager {
+                if let Err(e) = sm.render(&context.device, &context.queue,&self.state) {
                      // Hata yönetimi (SurfaceLost vb.)
                      self.logger.error(&format!("Render error: {:?}", e));
                 }
@@ -134,13 +150,16 @@ impl Engine {
         use std::rc::Rc;
         use std::cell::RefCell;
 
+        use crate::global_info;
+
         // 1. Wrap engine in Rc<RefCell> so it can be shared with the closure
         let engine = Rc::new(RefCell::new(self));
-        let f = Rc::new(RefCell::new(None));
+        let f = Rc::new(RefCell::new(None));    
         let g = f.clone();
-
         // 2. Create the animation frame closure
         *g.borrow_mut() = Some(Closure::new(move || {
+            use crate::global_info;
+
             let mut engine_ref = engine.borrow_mut();
                 
             // Run logic
@@ -160,6 +179,8 @@ impl Engine {
 
     //#[cfg(not(target_family = "wasm"))]
     fn sdl_loop(&mut self) {
+        
+        
         pollster::block_on(self.init_graphics());
         'main:loop {
             self.tick();
@@ -197,6 +218,8 @@ fn request_animation_frame(f: &Closure<dyn FnMut()>) {
 
 #[cfg(test)]
 mod tests{
+    use std::{pin::Pin, sync::mpsc};
+
     #[test]
     #[cfg(not(target_family = "wasm"))]
 
@@ -204,4 +227,28 @@ mod tests{
         let s = sdl3::get_platform();
         println!("{}",s);
     }
+    #[test]
+    fn mpsc_test(){
+        let (tx,rx) = mpsc::channel::<String>();
+        
+        std::thread::spawn(move||{
+            let mut i = 0;
+            for x in 0..10{
+                tx.send(format!("asfasfas no {i}"));
+                i+=1;
+            };
+        });
+
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        loop {
+            match rx.recv() {
+                Ok(msg) => println!("recieved \"{}\"",msg),
+                Err(err) => {println!("err:{:?}",err);break;},
+            }
+            
+            
+        }
+
+    }
+
 }
