@@ -2,11 +2,17 @@ use realgameengine::prelude::*;
 
 #[main]
 fn main(){
-    let mut w = Engine::new("hello");
 
-    w.state.world.add_object([0.5,0.2]);
-    w.state.world.add_object([-0.5,0.]);
-    
-    
-    w.game_loop();    
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+    let mut logger = NewDefaultLogger();
+
+    logger.info("zort");
+
+    wasm_thread::spawn(move|| {
+        logger.info("zozozrt");
+    });
+
 }
+
+
+

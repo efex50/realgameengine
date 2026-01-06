@@ -1,41 +1,60 @@
-use std::sync::{mpsc, Arc, OnceLock};
-use std::thread;
+use std::sync::{Arc, Mutex, OnceLock, mpsc};
 
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
-use crate::PENDING_MESSAGES;
+use crate::{PENDING_MESSAGES, thread_pool::spawn_global};
 
 static GLOBAL_LOGGER: Lazy<LoggerHandle> = Lazy::new(|| {
-    let (tx, rx) = mpsc::channel();
     
-    // Spawn a dedicated logging thread
-    thread::spawn(move || {
-        let mut logger: Box<dyn Logger> = Box::new(NewDefaultLogger());
-        
-        while let Ok(cmd) = rx.recv() {
-            match cmd {
-                LogCommand::Info(msg) => logger.info(&msg),
-                LogCommand::Warn(msg) => logger.warn(&msg),
-                LogCommand::Error(msg) => logger.error(&msg),
-                LogCommand::Alert(msg) => logger.alert(&msg),
-                LogCommand::Log(log_msg) => logger.log(&log_msg),
-                LogCommand::Change(new_logger) => logger = new_logger,
-                LogCommand::Shutdown => break,
+    
+    // --- NATIVE KISMI ---
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let (tx, rx) = flume::unbounded();
+
+        spawn_global(move || {
+            let mut logger: Box<dyn Logger> = Box::new(NewDefaultLogger());
+            while let Ok(cmd) = rx.recv() {
+                match cmd {
+                    LogCommand::Info(msg) => logger.info(&msg),
+                    LogCommand::Warn(msg) => logger.warn(&msg),
+                    LogCommand::Error(msg) => logger.error(&msg),
+                    LogCommand::Alert(msg) => logger.alert(&msg),
+                    LogCommand::Log(msg) => logger.log(&msg),
+                    LogCommand::Change(new_logger) => logger = new_logger,
+                    LogCommand::Shutdown => break,
+                }
             }
+        });
+
+        return LoggerHandle { sender: tx }
+    };
+
+
+    // --- wasm için ---
+    #[cfg(target_arch = "wasm32")]
+    {
+        // WASM'da thread spawn ETMİYORUZ.
+        // Doğrudan logger'ı oluşturup handle içine koyuyoruz.
+        return LoggerHandle {
+            logger: Arc::new(Mutex::new(Box::new(NewDefaultLogger())))
         }
-    });
+    }    
     
-    LoggerHandle { sender: tx }
 });
 
 pub type LoggerHandle = LoggerSender;
 
 #[derive(Clone)]
 pub struct LoggerSender {
-    sender: mpsc::Sender<LogCommand>,
-}
+    #[cfg(not(target_arch = "wasm32"))]
+    sender: flume::Sender<LogCommand>,
 
+    /// wasm kullanırken blocking şekilde loglama yapıyor
+    #[cfg(target_arch = "wasm32")]
+    logger: Arc<Mutex<Box<dyn Logger>>>,
+}
 enum LogCommand {
     Info(String),
     Warn(String),
@@ -47,28 +66,49 @@ enum LogCommand {
 }
 
 impl LoggerSender {
+    fn send_command(&self,com:LogCommand)  {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let _ = self.sender.send(com);
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            // WASM tek thread olsa da Lazy static Send/Sync ister, o yüzden Mutex şart.
+            if let Ok(mut logger) = self.logger.lock() {
+                match com {
+                    LogCommand::Info(msg) => logger.info(&msg),
+                    LogCommand::Warn(msg) => logger.warn(&msg),
+                    LogCommand::Error(msg) => logger.error(&msg),
+                    LogCommand::Alert(msg) => logger.alert(&msg),
+                    LogCommand::Log(msg) => logger.log(&msg),
+                    LogCommand::Change(new_logger) => *logger = new_logger,
+                    LogCommand::Shutdown => {}, // WASM'da shutdown anlamsız
+                }
+            }
+        }
+    }
     fn info(&self, log: &str) {
-        let _ = self.sender.send(LogCommand::Info(log.to_string()));
+        let _ = self.send_command(LogCommand::Info(log.to_string()));
     }
     
     fn warn(&self, log: &str) {
-        let _ = self.sender.send(LogCommand::Warn(log.to_string()));
+        let _ = self.send_command(LogCommand::Warn(log.to_string()));
     }
     
     fn error(&self, log: &str) {
-        let _ = self.sender.send(LogCommand::Error(log.to_string()));
+        let _ = self.send_command(LogCommand::Error(log.to_string()));
     }
     
     fn alert(&self, log: &str) {
-        let _ = self.sender.send(LogCommand::Alert(log.to_string()));
+        let _ = self.send_command(LogCommand::Alert(log.to_string()));
     }
     
     fn log(&self, log: &LogMsg) {
-        let _ = self.sender.send(LogCommand::Log(log.clone()));
+        let _ = self.send_command(LogCommand::Log(log.clone()));
     }
     
     fn change(&self, new_logger: Box<dyn Logger>) {
-        let _ = self.sender.send(LogCommand::Change(new_logger));
+        let _ = self.send_command(LogCommand::Change(new_logger));
     }
 }
 

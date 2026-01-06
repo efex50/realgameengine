@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 use wasm_bindgen::prelude::Closure;
 
 use crate::{engine::{messages::{Message, PENDING_MESSAGES}, window::GameWindowManager}, log::{Logger, NewDefaultLogger}, renderer::GraphicsContext, set_global_logger, world::EngineWorld};
-
+use crate::{global_info, thread_pool::init_global_pool};
 
 pub mod window;
 pub mod messages;
@@ -42,6 +42,64 @@ pub struct Engine{
 impl Engine {
     pub fn new<S:Into<String>>(title:S) -> Self {
         let title = title.into();
+
+        // init thread pool
+        {
+            #[cfg(not(target_family = "wasm"))]
+            {
+                let cores = std::thread::available_parallelism().unwrap().get();
+                if cores <= 2{
+                    todo!("desteklenmeyen sistem. daha düzgün bir hata mesajı")
+                }
+                if cores < 4{
+                    init_global_pool(1  );
+                }else if cores < 6 {
+
+                    init_global_pool(cores -2);
+                }else if cores < 10{
+                    init_global_pool(cores -3);
+                }else {
+                    init_global_pool(cores -4);
+                }
+                global_info(&format!("amount of cores: {}",cores));
+            }
+            #[cfg(target_family = "wasm")]
+            {
+                use wasm_bindgen::prelude::wasm_bindgen;
+                use wgpu::web_sys;
+
+                use crate::thread_pool::init_global_pool;
+
+                #[wasm_bindgen]
+                unsafe extern "C" {
+                    pub fn alert(s:&str);
+                }
+
+                let cores = web_sys::window().unwrap().navigator().hardware_concurrency() as usize;
+                if cores <= 2{
+                    use wasm_bindgen::JsValue;
+                    unsafe {
+                        alert("Desteklenmeyen sistem.işlemci sayısı az en az 3 olmalı");
+                    }
+                    todo!("desteklenmeyen sistem. daha düzgün bir hata mesajı")
+                }
+                if cores < 4{
+
+                    init_global_pool(1  );
+                }else if cores < 6 {
+
+                    init_global_pool(cores -2);
+                }else if cores < 10{
+                    init_global_pool(cores -3);
+                }else {
+                    init_global_pool(cores -6);
+                }
+                global_info(&format!("amount of cores: {}",cores));
+
+
+            }
+        }
+
 
         #[cfg(target_family = "wasm")]
         {
@@ -249,6 +307,16 @@ mod tests{
             
         }
 
+    }
+
+
+    #[test]
+    fn parrrralel(){
+        let t = std::thread::available_parallelism().unwrap();
+        let h = std::thread::spawn(|| {
+            
+        });
+        println!("{}",t)
     }
 
 }

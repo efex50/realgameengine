@@ -9,7 +9,11 @@ wasm_target="wasm32-unknown-unknown"
 
 releases=""
 
-change_dev="[build]
+change_dev="
+[target.wasm32-unknown-unknown]
+rustflags = [\"-C\", \"target-feature=+atomics,+bulk-memory,+mutable-globals\"]
+
+[build]
 target = \"%s\"\n"
 
 

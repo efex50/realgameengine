@@ -72,11 +72,11 @@ case "$1" in
                 echo "Build complete!"
 
                 echo starting...
-                python3 -m http.server 8080 -d web
+                 miniserve web --header "Cross-Origin-Opener-Policy: same-origin" --header "Cross-Origin-Embedder-Policy: require-corp"
             ;;
             *)
                 echo "Build complete! To run:"
-                echo "  cd web && python3 -m http.server 8080"
+                echo "  cd web && python3 ./server.py"
                 echo "  Open http://localhost:8080 in a WebGPU-enabled browser"
             ;;
         esac

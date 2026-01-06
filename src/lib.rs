@@ -11,6 +11,42 @@ pub use engine::*;
 
 
 
+#[cfg(target_family = "wasm")]
+mod wasm{
+    use std::{cell::RefCell, rc::Rc};
+
+    use wasm_bindgen::prelude::{Closure, wasm_bindgen};
+    use wgpu::web_sys;
+    #[wasm_bindgen(js_namespace = console)]
+    unsafe extern "C" {
+        pub fn log(s: &str);
+        pub fn warn(s: &str);
+        pub fn error(s: &str);
+    }
+
+    #[wasm_bindgen]
+    pub fn zort() -> wasm_bindgen::JsValue{
+
+
+        web_sys::console::log_1(&"safasfi".into());
+        let closure = Closure::wrap(Box::new(move |message: String| {
+            web_sys::console::log_1(&message.into());
+        }) as Box<dyn FnMut(String)>);
+
+        // 2. Extract the JS function wrapper
+        let js_func = closure.as_ref().clone();
+
+        // 3. IMPORTANT: Forget the closure to keep it alive
+        // If you don't do this, Rust will drop the 'closure' variable 
+        // at the end of this scope, and the JS function will become invalid.
+        closure.forget();
+
+        js_func
+    }
+}
+
+
+
 #[cfg(test)]
 mod tests{
     use serde::{Deserialize, Serialize};
