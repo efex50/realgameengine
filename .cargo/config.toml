@@ -1,2 +1,12 @@
-[build]
-target = "x86_64-unknown-linux-gnu"
+[target.wasm32-unknown-unknown]
+rustflags = [
+    "-C", "target-feature=+atomics",
+    "-C", "target-feature=+bulk-memory",
+    "-C", "link-arg=--shared-memory",
+    "-C", "link-arg=--max-memory=2147483648", # 2GB fweb için hafıza
+    "-C", "link-arg=--import-memory",
+    "-C", "link-arg=--export=__wasm_init_tls",
+    "-C", "link-arg=--export=__tls_size",
+    "-C", "link-arg=--export=__tls_align",
+    "-C", "link-arg=--export=__tls_base",
+]
