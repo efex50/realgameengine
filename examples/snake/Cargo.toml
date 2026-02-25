@@ -3,7 +3,19 @@ name = "snake"
 version = "0.1.0"
 edition = "2024"
 
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "native"
+path = "src/lib.rs"
+
+
 [dependencies]
 realgameengine = { path = "../../" }
 hecs = "0.10.5"
 rand = "0.8"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }

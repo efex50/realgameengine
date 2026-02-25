@@ -1,0 +1,32 @@
+warning: C:\Users\efe\Projeler\realgameengine\examples\snake\Cargo.toml: file `C:\Users\efe\Projeler\realgameengine\examples\snake\src\lib.rs` found to be present in multiple build targets:
+  * `lib` target `snake`
+  * `bin` target `native`
+    Checking spin v0.9.8
+    Checking zerocopy v0.8.39
+    Checking web-sys v0.3.86
+    Checking getrandom v0.2.17
+    Checking rand_core v0.6.4
+    Checking ahash v0.8.12
+    Checking ppv-lite86 v0.2.21
+    Checking hashbrown v0.14.5
+    Checking rand_chacha v0.3.1
+    Checking rand v0.8.5
+    Checking hecs v0.10.5
+    Checking wgpu-types v27.0.1
+    Checking console_log v1.0.0
+    Checking wgpu v27.0.1
+error[E0599]: no method named `then2` found for reference `&Promise` in the current scope
+     --> C:\Users\efe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wgpu-27.0.1\src\backend\webgpu.rs:1037:21
+      |
+ 1037 |     let _ = promise.then2(&closure_success, &closure_rejected);
+      |                     ^^^^^
+      |
+help: there is a method `then` with a similar name, but with different arguments
+     --> C:\Users\efe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\js-sys-0.3.86\src\lib.rs:12736:1
+      |
+12736 | #[wasm_bindgen]
+      | ^^^^^^^^^^^^^^^
+      = note: this error originates in the attribute macro `wasm_bindgen` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `wgpu` (lib) due to 1 previous error
