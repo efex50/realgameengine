@@ -1,12 +1,10 @@
-// src/engine/renderer/mod.rs
-
 use wgpu::{Instance, Surface, Adapter, Device, Queue, SurfaceConfiguration, SurfaceCapabilities};
 use wgpu::util::DeviceExt; // create_buffer_init için gerekli
 use crate::engine::window::GameWindowManager;
 
+// ai generated code
+// todo rewrite
 
-
-// Shader'daki Uniforms yapısıyla birebir eşleşmeli ve 16-byte hizalı olmalı
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct Uniforms {
@@ -281,6 +279,4 @@ impl SurfaceManager {
         Ok(())
     }
 }
-
-// Dosya yolu structure'a göre ayarlanmalı. Eğer proje kökünden çalışıyorsan bu yol doğru olabilir.
 const SHADER_SOURCE: &str = include_str!("../../../gsl/triangle_anim.wgsl");

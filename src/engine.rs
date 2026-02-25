@@ -1,12 +1,11 @@
 use std::sync::{Arc, Mutex};
 
-use once_cell::sync::Lazy;
+use once_cell::sync::{Lazy, OnceCell};
 #[cfg(target_family = "wasm")]
-use wasm_bindgen::prelude::Closure;
+use wasm_bindgen::prelude::*;
 
-use crate::{engine::{messages::{Message, PENDING_MESSAGES}, window::GameWindowManager}, log::{Logger, NewDefaultLogger}, renderer::GraphicsContext, set_global_logger, world::EngineWorld};
+use crate::{debug_info, engine::{messages::{Message, PENDING_MESSAGES}, window::GameWindowManager}, log::{Logger, NewDefaultLogger}, renderer::GraphicsContext, set_global_logger, world::EngineWorld};
 use crate::{global_info, thread_pool::init_global_pool};
-
 pub mod window;
 pub mod messages;
 pub mod log;
@@ -15,7 +14,12 @@ pub mod flags;
 pub mod world;
 pub mod thread_pool;
 
-
+pub static WASM_PATH:OnceCell<String> =OnceCell::new();
+#[cfg(target_family = "wasm")]
+#[wasm_bindgen]
+pub fn set_wasmjs_path(path:String){
+    WASM_PATH.set(path);
+}
 
 #[derive(Debug,PartialEq, Eq)]
 pub enum EngineStatus{
@@ -26,6 +30,8 @@ pub enum EngineStatus{
     Running,
     Kill,
 }
+
+
 
 pub struct EngineState{
     pub world : EngineWorld,
@@ -40,8 +46,17 @@ pub struct Engine{
     pub state:EngineState
 }
 impl Engine {
+
+    /// create new game instance with title of the game and project name(for wasm)
+    /// 
+    /// ```no_run
+    /// use realgameengine::prelude::*;
+    /// Engine::new("title",env!("CARGO_PKG_NAME"))
+    /// ```
     pub fn new<S:Into<String>>(title:S) -> Self {
         let title = title.into();
+
+        
 
         // init thread pool
         {
@@ -49,10 +64,10 @@ impl Engine {
             {
                 let cores = std::thread::available_parallelism().unwrap().get();
                 if cores <= 2{
-                    todo!("desteklenmeyen sistem. daha düzgün bir hata mesajı")
+                    todo!("desteklenmeyen sistem. todo! daha düzgün bir hata mesajı")
                 }
                 if cores < 4{
-                    init_global_pool(1  );
+                    init_global_pool(2);
                 }else if cores < 6 {
 
                     init_global_pool(cores -2);
@@ -61,7 +76,7 @@ impl Engine {
                 }else {
                     init_global_pool(cores -4);
                 }
-                global_info(&format!("amount of cores: {}",cores));
+                debug_info(&format!("total amount of cores: {}",cores));
             }
             #[cfg(target_family = "wasm")]
             {
@@ -94,7 +109,7 @@ impl Engine {
                 }else {
                     init_global_pool(cores -6);
                 }
-                global_info(&format!("amount of cores: {}",cores));
+                debug_info(&format!("total amount of cores: {}",cores));
 
 
             }
@@ -107,7 +122,7 @@ impl Engine {
         }
         let w = GameWindowManager::new(title);
         let mut logger = NewDefaultLogger();
-        logger.info("engine initilazition finished");
+        debug_info("engine initilazition finished");
         
         
         let world = EngineWorld::new();

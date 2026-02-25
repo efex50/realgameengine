@@ -1,4 +1,4 @@
-use crate::window::InnerWindow;
+use crate::{debug_error, window::InnerWindow};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebCanvasWindowHandle};
 use std::ptr::NonNull;
 use crate::global_error;
@@ -28,13 +28,13 @@ impl InnerWindow for WebWindow{
     
     fn size(&self) -> (u32, u32) {
         {
-            global_error("TODO get canvas size");
+            debug_error("TODO get canvas size");
             (0,0)
         }
     }
     fn poll_events(&mut self) {
         {
-            global_error("TODO poll keyboard events")
+            debug_error("TODO poll keyboard events")
         }
     }
 }

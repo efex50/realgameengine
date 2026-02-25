@@ -5,20 +5,33 @@ echo "=== Building SDL3 + wgpu Example ==="
 
 
 linux_target="x86_64-unknown-linux-gnu"
+windows_target="x86_64-pc-windows-gnu"
 wasm_target="wasm32-unknown-unknown"
 
 releases=""
 
-change_dev="
-[target.wasm32-unknown-unknown]
-rustflags = [\"-C\", \"target-feature=+atomics,+bulk-memory,+mutable-globals\"]
+get_config() {
+    local target_arch=$1
+    
+    cat <<EOF
+{
+    "rust-analyzer.check.command": "check",
+    "rust-analyzer.cargo.buildScripts.enable": true,
+    "rust-analyzer.cargo.target": "$target_arch",
+    "rust-analyzer.check.extraArgs": [
+        "-Z", "build-std=std,panic_abort",
+        "--target", "$target_arch"
+    ],
+    "rust-analyzer.server.extraEnv": {
+        "RUSTUP_TOOLCHAIN": "nightly"
+    }
+}
+EOF
+}
 
-[build]
-target = \"%s\"\n"
-
-
-native_build="cargo build --release --bin native --features=\"native-bin,\$release\"  --target \$linux_target"
-native_run="cargo run -r --features=\"native-bin,\$release\" --bin native  --target \$linux_target"
+rust_verr="nightly-x86_64-unknown-linux-gnu"
+native_build="rustup run $rust_verr cargo build --release --bin native --features=\"native-bin,\$release\"  --target \$linux_target"
+native_run="rustup run $rust_verr cargo run -r --features=\"native-bin,\$release\" --bin native  --target \$linux_target"
 
 
 help_msg(){
@@ -52,7 +65,7 @@ case "$1" in
                 #cargo run -r --target x86_64-unknown-linux-gnu --bin native
             ;;
             *)
-                eval $native_build
+                eval $native_dev_targetbuild
                 #cargo build --release --bin native
                 echo "Run with: cargo run --release --bin native"
             ;;
@@ -68,7 +81,7 @@ case "$1" in
         fi
         
         # Build WASM
-        wasm-pack build --target web --out-dir web/pkg
+        rustup run $rust_verr wasm-pack build . --target web --out-dir web/pkg -- -Z build-std=panic_abort,std
         
         echo ""
         case "$2" in
@@ -109,13 +122,15 @@ case "$1" in
         fi
 
         if [ "$2" = "linux" ];then
-            dev_target=$(printf "$change_dev" "$linux_target")
+            dev_target=$(get_config "$linux_target")
         elif [ "$2" = "web" ];then
-            dev_target=$(printf "$change_dev" "$wasm_target")
+            dev_target=$(get_config "$wasm_target")
+        elif [ "$2" = "windows" ];then
+            dev_target=$(get_config "$windows_target")
         else
-            dev_target=$(printf "$change_dev" "$2")
+            dev_target=$(get_config "$2")
         fi
-        printf "$dev_target" > .cargo/config.toml
+        printf "$dev_target" > .vscode/settings.json
         ;;
     *)
         help_msg

@@ -27,13 +27,18 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
         // --- WASM Entry Point ---
         #[cfg(target_arch = "wasm32")]
         use wasm_bindgen::prelude::*;
-
+        #[cfg(target_arch = "wasm32")]
+        #[wasm_bindgen]
+        pub fn __engine_start(){
+            // real starting point for game engine
+            __engine_user_main()
+        }
         #[cfg(target_arch = "wasm32")]
         #[wasm_bindgen(start)]
         pub fn main(){
-            // Call the user's function
-            // We map the Rust error to a JsValue string so the browser console shows it
-            __engine_user_main()
+            // init the game but not start it for workers to not start
+
+
         }
     };
 

@@ -1,145 +1,144 @@
+use std::any::Any;
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 
 use once_cell::sync::Lazy;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::wasm_bindgen;
 
-// Ortak bir Job tipi tanımlayalım.
-// Send + 'static olması, thread'ler arası taşınabilmesi için şart.
-type Job = Box<dyn FnOnce() + Send + 'static>;
+#[cfg(not(target_arch = "wasm32"))]
+mod native;
+use crate::global_info;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::thread_pool::native::{ThreadPool,Worker};
+
+#[cfg(target_arch = "wasm32")]
+mod web;
+#[cfg(target_arch = "wasm32")]
+use crate::thread_pool::web::{ThreadPool,Worker};
+
 
 // ---------------------------------------------------------------------------
 // 1. NATIVE IMPLEMENTASYONU (Gerçek Multi-thread)
 // ---------------------------------------------------------------------------
-#[cfg(not(target_arch = "wasm32"))]
-pub struct ThreadPool {
-    workers: Vec<Worker>,
-    sender: Option<mpsc::Sender<Job>>,
+
+pub enum Jobs{
+    Job(Box<dyn FnOnce() + Send + 'static>),
+    Kill
+}
+
+pub struct WorkerHandleOnce{
+    sender:flume::Sender<Jobs>,
+    worker:Worker
+}
+impl WorkerHandleOnce {
+    pub fn spawn<F,T>(self,fun:F) -> JobHandle<T>
+    where F: FnOnce() -> T + Send + 'static,
+    T:Send + 'static
+    {
+        let (tx, rx) = oneshot::channel::<T>();
+        let wrapper = move || {
+            let res = fun();
+            tx.send(res);
+        };
+        self.sender.send(Jobs::Job(Box::new(wrapper)));
+        JobHandle { rx }
+    }
+}
+pub struct WorkerHandle{
+    sender:flume::Sender<Jobs>,
+}
+impl WorkerHandle {
+    pub fn spawn<F,T>(&self,fun:F) -> JobHandle<T>
+    where F: FnOnce() -> T + Send + 'static,
+    T:Send + 'static
+    {
+        let (tx, rx) = oneshot::channel::<T>();
+        let wrapper = move || {
+            let res = fun();
+            tx.send(res);
+        };
+        self.sender.send(Jobs::Job(Box::new(wrapper)));
+        JobHandle { rx }
+    }
 }
 
 
+pub trait ThreadPoolTrait{
+    fn new(cores:usize) -> Self;
+    fn execute<F>(&self, f: F) where F: FnOnce() + Send + 'static;
+    fn send_job(&self,job:Jobs);
+    fn change_worker_amount(&mut self,new_size:usize);
+    fn new_dedicated_worker(&self) -> WorkerHandle;
+}
 static mut CORES:usize = 0;
 pub static GLOBAL_POOL: Lazy<ThreadPool> = Lazy::new(|| {
     let mut cores = unsafe {CORES};
     if cores == 0 {
-        cores = 1; 
+        cores = 2; 
         #[cfg(not(target_arch = "wasm32"))]
-        println!("UYARI: init_global_pool çağrılmadı, varsayılan olarak 1 thread açılıyor.");
+        println!("UYARI: init_global_pool çağrılmadı, varsayılan olarak 2 thread açılıyor.");
     }
     ThreadPool::new(cores)
 });
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+pub fn __init_thread_pool(a:usize){
+    init_global_pool(a);
+}
+
 pub fn init_global_pool(_a:usize){
     unsafe {
         CORES = _a;
     }
-    
     Lazy::force(&GLOBAL_POOL);
 }
-pub fn spawn_global<F>(mut a:F) where F: FnOnce() + Send + 'static{
-    GLOBAL_POOL.execute(a);
+
+pub struct JobHandle<T>{
+    rx:oneshot::Receiver<T>
 }
-
-#[cfg(not(target_arch = "wasm32"))]
-impl ThreadPool {
-    /// Yeni bir ThreadPool oluşturur.
-    /// `size` parametresi kaç thread açılacağını belirler.
-    pub fn new(size: usize) -> ThreadPool {
-        assert!(size > 0);
-
-        let (sender, receiver) = mpsc::channel();
-        // Receiver'ı threadler arasında paylaşmak için Arc ve Mutex içine alıyoruz.
-        let receiver = Arc::new(Mutex::new(receiver));
-        let mut workers = Vec::with_capacity(size);
-
-        for id in 0..size {
-            workers.push(Worker::new(id, Arc::clone(&receiver)));
-        }
-
-        ThreadPool {
-            workers,
-            sender: Some(sender),
+impl<T> JobHandle<T> {
+    fn new(rx:oneshot::Receiver<T>) -> JobHandle<T> {
+        Self{rx}
+    }
+    pub fn join(self) -> T{
+        #[cfg(not(target_family = "wasm"))]
+        return self.rx.recv().unwrap();
+        #[cfg(target_family = "wasm")]
+        {
+            use crate::debug_warn;
+            debug_warn("thread join in wasm is experimental.");
+            return self.rx.recv().unwrap();
         }
     }
-
-    /// Bir closure'ı çalıştırmak üzere havuza gönderir.
-    pub fn execute<F>(&self, f: F)
-    where
-        F: FnOnce() + Send + 'static,
-    {
-        let job = Box::new(f);
-        if let Some(sender) = &self.sender {
-            sender.send(job).expect("Thread pool kapatılmış, iş gönderilemiyor.");
-        }
+    pub fn is_finished(&self)->bool{
+        self.rx.has_message()
+    }
+    pub fn recv_timeout(&self,dur:std::time::Duration) -> Result<T, oneshot::RecvTimeoutError> {
+        self.rx.recv_timeout(dur)
+    }
+    pub fn try_recv(&self) -> Option<T> {
+        self.rx.try_recv().ok()
     }
 }
 
-// Native tarafı için Worker yapısı ve Drop trait'i (Temiz kapanma için)
-#[cfg(not(target_arch = "wasm32"))]
-struct Worker {
-    id: usize,
-    thread: Option<thread::JoinHandle<()>>,
+// todo better return types
+pub fn spawn_global<F,T>(mut a:F) -> JobHandle<T> 
+    where F: FnOnce() -> T + Send + 'static,
+    T:Send + 'static{
+    let (tx, rx) = oneshot::channel::<T>();
+    let wrapper = move || {
+        let res = a();
+        tx.send(res);
+    };
+    
+    GLOBAL_POOL.execute(wrapper);
+    JobHandle { rx }
 }
-
-#[cfg(not(target_arch = "wasm32"))]
-impl Worker {
-    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
-        let thread = thread::spawn(move || loop {
-            // Mutex kilitlenir, iş alınır, kilit hemen bırakılır.
-            let message = receiver.lock().unwrap().recv();
-
-            match message {
-                Ok(job) => {
-                    // println!("Worker {} işi aldı.", id); // Debug için
-                    job();
-                }
-                Err(_) => {
-                    // Sender drop edildiyse döngüden çık
-                    break;
-                }
-            }
-        });
-
-        Worker {
-            id,
-            thread: Some(thread),
-        }
-    }
+pub fn spawn_job_global(job:Jobs){
+    GLOBAL_POOL.send_job(job);
 }
-
-#[cfg(not(target_arch = "wasm32"))]
-impl Drop for ThreadPool {
-    fn drop(&mut self) {
-        // Sender'ı drop ederek worker döngülerini kırıyoruz.
-        drop(self.sender.take());
-
-        for worker in &mut self.workers {
-            // println!("Worker {} kapatılıyor...", worker.id);
-            if let Some(thread) = worker.thread.take() {
-                thread.join().unwrap();
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// 2. WASM IMPLEMENTASYONU (Single Thread - Fake Pool)
-// ---------------------------------------------------------------------------
-#[cfg(target_arch = "wasm32")]
-pub struct ThreadPool; // WASM tarafında state tutmaya gerek yok.
-
-#[cfg(target_arch = "wasm32")]
-impl ThreadPool {
-    /// WASM tarafında 'size' parametresi yoksayılır çünkü tek thread var.
-    pub fn new(_size: usize) -> ThreadPool {
-        // Loglamak istersen web_sys::console::log_1 kullanabilirsin.
-        ThreadPool
-    }
-
-    /// WASM tarafında iş hemen o an (senkron olarak) çalıştırılır.
-    pub fn execute<F>(&self, f: F)
-    where
-        F: FnOnce() + Send + 'static,
-    {
-        // WASM'da thread yok, direkt çağırıyoruz.
-        f();
-    }
+pub fn new_worker_global() -> WorkerHandle {
+    GLOBAL_POOL.new_dedicated_worker()
 }

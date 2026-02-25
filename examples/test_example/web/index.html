@@ -13,40 +13,7 @@
 <body>
     <div id="store" > </div>
     <canvas id="canvas"></canvas>
-    <script type="module">
-        import init, { send_message , zort } from "./pkg/test_example.js";
-
-        function setup(){
-            let store = document.querySelector("#store");
-            store.zort = zort
-            store.init = init
-            store.send_message = send_message
-        }
-
-        async function run() {
-            // --- 1. ADIM: Paylaşımlı Bellek (Shared Memory) Oluştur ---
-            // 'shared: true' olması için headerların (COOP/COEP) doğru olması şarttır.
-            // 'maximum: 65536' değeri Rust config'indeki 4GB sınırına denk gelir.
-            const memory = new WebAssembly.Memory({
-                initial: 20,
-                maximum: 65536,
-                shared: true
-            });
-            console.log("cross origin=",crossOriginIsolated);
-            
-            // --- 2. ADIM: Belleği init fonksiyonuna ver ---
-            // İlk parametre module path (undefined bırakırsak varsayılanı kullanır)
-            // İkinci parametre oluşturduğumuz memory objesi
-            await init(undefined, memory);
-            
-            send_message("Start"); 
-            setInterval(() => {
-                // send_message({ "Say": "Hello Rust!" });
-            }, 500);
-        }
-        window._store =  document.querySelector("#store")
-        setup()
-        run()
-    </script>
+<script type="module" src="main.js"></script>
 </body>
 </html>
+

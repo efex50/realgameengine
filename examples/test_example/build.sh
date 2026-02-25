@@ -12,9 +12,10 @@ releases=""
 change_dev="[build]
 target = \"%s\"\n"
 
+rust_verr="nightly-x86_64-unknown-linux-gnu"
 
-native_build="cargo build --release --bin native --features=\"\$release\"  --target \$linux_target"
-native_run="cargo run -r --features=\"\$release\" --bin native  --target \$linux_target"
+native_build="rustup run $rust_verr cargo build --release --bin native --features=\"\$release\"  --target \$linux_target"
+native_run="rustup run $rust_verr cargo run -r --features=\"\$release\" --bin native  --target \$linux_target"
 
 
 help_msg(){
@@ -63,8 +64,8 @@ case "$1" in
             cargo install wasm-pack
         fi
         
-        # Build WASM
-        wasm-pack build --target web --out-dir web/pkg
+        # Build WASM    
+        rustup run $rust_verr wasm-pack build . --target web --out-dir web/pkg -- -Z build-std=panic_abort,std
         
         echo ""
         case "$2" in
@@ -72,7 +73,7 @@ case "$1" in
                 echo "Build complete!"
 
                 echo starting...
-                 miniserve web --header "Cross-Origin-Opener-Policy: same-origin" --header "Cross-Origin-Embedder-Policy: require-corp"
+                miniserve web --header "Cross-Origin-Opener-Policy: same-origin" --header "Cross-Origin-Embedder-Policy: require-corp" --index index.html
             ;;
             *)
                 echo "Build complete! To run:"

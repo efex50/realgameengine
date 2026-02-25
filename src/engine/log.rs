@@ -3,17 +3,16 @@ use std::sync::{Arc, Mutex, OnceLock, mpsc};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
-use crate::{PENDING_MESSAGES, thread_pool::spawn_global};
+use crate::{PENDING_MESSAGES, thread::Jobs, thread_pool::{WorkerHandle, new_worker_global, spawn_global}};
 
 static GLOBAL_LOGGER: Lazy<LoggerHandle> = Lazy::new(|| {
     
     
-    // --- NATIVE KISMI ---
-    #[cfg(not(target_arch = "wasm32"))]
     {
+        let new_worker = new_worker_global();
+        
         let (tx, rx) = flume::unbounded();
-
-        spawn_global(move || {
+        new_worker.spawn(move || {
             let mut logger: Box<dyn Logger> = Box::new(NewDefaultLogger());
             while let Ok(cmd) = rx.recv() {
                 match cmd {
@@ -30,30 +29,18 @@ static GLOBAL_LOGGER: Lazy<LoggerHandle> = Lazy::new(|| {
 
         return LoggerHandle { sender: tx }
     };
-
-
-    // --- wasm için ---
-    #[cfg(target_arch = "wasm32")]
-    {
-        // WASM'da thread spawn ETMİYORUZ.
-        // Doğrudan logger'ı oluşturup handle içine koyuyoruz.
-        return LoggerHandle {
-            logger: Arc::new(Mutex::new(Box::new(NewDefaultLogger())))
-        }
-    }    
-    
 });
 
 pub type LoggerHandle = LoggerSender;
 
 #[derive(Clone)]
 pub struct LoggerSender {
-    #[cfg(not(target_arch = "wasm32"))]
     sender: flume::Sender<LogCommand>,
-
-    /// wasm kullanırken blocking şekilde loglama yapıyor
-    #[cfg(target_arch = "wasm32")]
-    logger: Arc<Mutex<Box<dyn Logger>>>,
+}
+impl Drop for LoggerSender {
+    fn drop(&mut self) {
+        self.sender.send(LogCommand::Shutdown);
+    }
 }
 enum LogCommand {
     Info(String),
@@ -67,25 +54,7 @@ enum LogCommand {
 
 impl LoggerSender {
     fn send_command(&self,com:LogCommand)  {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
             let _ = self.sender.send(com);
-        }
-        #[cfg(target_arch = "wasm32")]
-        {
-            // WASM tek thread olsa da Lazy static Send/Sync ister, o yüzden Mutex şart.
-            if let Ok(mut logger) = self.logger.lock() {
-                match com {
-                    LogCommand::Info(msg) => logger.info(&msg),
-                    LogCommand::Warn(msg) => logger.warn(&msg),
-                    LogCommand::Error(msg) => logger.error(&msg),
-                    LogCommand::Alert(msg) => logger.alert(&msg),
-                    LogCommand::Log(msg) => logger.log(&msg),
-                    LogCommand::Change(new_logger) => *logger = new_logger,
-                    LogCommand::Shutdown => {}, // WASM'da shutdown anlamsız
-                }
-            }
-        }
     }
     fn info(&self, log: &str) {
         let _ = self.send_command(LogCommand::Info(log.to_string()));
@@ -127,6 +96,33 @@ pub fn global_alert(msg: &str) {
 pub fn global_error(msg: &str) {
     GLOBAL_LOGGER.error(msg);
 }
+
+// print if debug feature present
+pub fn debug_info(msg: &str) {
+    if cfg!(feature = "debug_log"){
+        GLOBAL_LOGGER.info(msg);
+    }
+}
+
+pub fn debug_warn(msg: &str) {
+    if cfg!(feature = "debug_log"){
+        GLOBAL_LOGGER.warn(msg);
+    }
+}
+
+pub fn debug_alert(msg: &str) {
+    if cfg!(feature = "debug_log"){
+        GLOBAL_LOGGER.alert(msg);
+    }
+}
+
+pub fn debug_error(msg: &str) {
+    if cfg!(feature = "debug_log"){
+        GLOBAL_LOGGER.error(msg);
+    }
+}
+//
+
 
 /// Sets the global logger
 /// 
