@@ -11,7 +11,14 @@ name = "native"
 path = "src/lib.rs"
 
 
+[package.metadata.vcpkg]
+git = "https://github.com/microsoft/vcpkg"
+rev = "4c1db68"
+dependencies = ["sdl3"]
+
+
 [dependencies]
+pyo3 = { version = "0.28.2", features = ["auto-initialize"] }
 realgameengine ={ "path" = "../.." ,features = [
     #"debug_log",
     ]}
