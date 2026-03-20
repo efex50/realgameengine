@@ -12,6 +12,13 @@ crate-type = ["cdylib", "rlib"]
 [workspace]
 members = ["./examples/*", "proc_marcoes"]
 
+
+[package.metadata.vcpkg]
+vcpkg-root = "C:/Users/efe/scoop/apps/vcpkg/current" # Scoop kullanıyorsan yolun doğruluğuna bak
+install = ["sdl3"]
+[package.metadata.vcpkg.target.x86_64-pc-windows-msvc]
+install = ["sdl3:x86_64-windows"]
+
 [dependencies]
 bytemuck = { version = "1.24.0", features = ["derive"] }
 log = "0.4.28"
@@ -24,11 +31,19 @@ wgpu = "27.0.1"
 proc_marcoes = {path = "./proc_marcoes"}
 flume = "0.12.0"
 oneshot = "0.1.11"
+pyo3 = { version = "0.28.2", features = ["auto-initialize"] }
+hecs = "0.11.0"
+
+
+
 
 [features]
 default = []
 debug_log = []
 static=["sdl3/build-from-source","sdl3/static-link"]
+
+[target.'cfg(target_os = "windows")'.build-dependencies]
+vcpkg = "0.2.15"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 sdl3-sys = "0.5.12"

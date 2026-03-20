@@ -13,6 +13,7 @@ pub mod renderer;
 pub mod flags;
 pub mod world;
 pub mod thread_pool;
+pub mod systems;
 
 pub static WASM_PATH:OnceCell<String> =OnceCell::new();
 #[cfg(target_family = "wasm")]

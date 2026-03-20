@@ -18,7 +18,6 @@ dependencies = ["sdl3"]
 
 
 [dependencies]
-pyo3 = { version = "0.28.2", features = ["auto-initialize"] }
 realgameengine ={ "path" = "../.." ,features = [
     #"debug_log",
     ]}
