@@ -6,6 +6,7 @@ pub mod web_backend;
 
 #[cfg(not(target_family = "wasm"))]
 pub mod sdl_backend;
+pub mod events;
 
 use crate::engine::renderer::SurfaceManager;
 
@@ -17,6 +18,9 @@ pub trait InnerWindow:Send + Sync + HasWindowHandle + HasDisplayHandle{
     fn poll_events(&mut self);
 }
 pub trait WindowManager{
+    fn size(&self) -> (u32,u32);
+    fn poll_events(&mut self);
+    fn set_title(&mut self,title:String);
 
 }
 unsafe impl Send for GameWindowManager {}
@@ -24,7 +28,7 @@ unsafe impl Sync for GameWindowManager {}
 
 
 pub struct GameWindowManager{
-    pub inner: Box<dyn InnerWindow>,
+    inner: Box<dyn InnerWindow>,
     pub surface_manager: Option<SurfaceManager>,
 }
 
@@ -49,6 +53,19 @@ impl GameWindowManager {
     
 }
 
+impl WindowManager for GameWindowManager {
+    fn size(&self) -> (u32,u32) {
+        self.inner.size()
+    }
+    
+    fn poll_events(&mut self) {
+        self.inner.poll_events();
+    }
+    
+    fn set_title(&mut self,title:String) {
+        self.inner.set_title(title);
+    }
+}
 
 // GameWindow üzerinden handle'lara erişim sağlamak için delegasyon yapıyoruz
 impl HasWindowHandle for GameWindowManager {

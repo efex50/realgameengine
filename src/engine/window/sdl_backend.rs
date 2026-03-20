@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use sdl3::{EventPump, VideoSubsystem, pixels::Color};
 
-use crate::{PENDING_MESSAGES, engine::window::{InnerWindow, sdl_backend}, global_warn, send_message};
+use crate::{PENDING_MESSAGES, engine::window::{InnerWindow, sdl_backend}, global_alert, global_warn, send_message};
 pub type SdlContext = Arc<Mutex<sdl3::Sdl>>;
 
 
@@ -60,8 +60,13 @@ impl InnerWindow for SdlWindowManager {
                         send_message(crate::Message::Kill);
                         global_warn("warn: killing the game");
                     },
+                    sdl3::event::Event::KeyDown { timestamp, window_id, keycode, scancode, keymod, repeat, which, raw } => {
+                        send_message(crate::Message::WindowEvent(super::events::WindowEvents::KeyDown { timestamp, window_id, key_code: (), scancode: (), keymod: (), raw: () }));
+                    }
 
-                    _ => ()
+                    _ => {
+                        global_alert(&format!("event got! {:?}",_event));
+                    }
                 }
                 // Burada ileride klavye/mouse eventlerini işleyebilirsin
                 // Örn: Message::KeyDown gönderilebilir

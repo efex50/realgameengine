@@ -4,7 +4,7 @@ use once_cell::sync::{Lazy, OnceCell};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::{debug_info, engine::{messages::{Message, PENDING_MESSAGES}, window::GameWindowManager}, log::{Logger, NewDefaultLogger}, renderer::GraphicsContext, set_global_logger, world::EngineWorld};
+use crate::{debug_info, engine::{messages::{Message, PENDING_MESSAGES}, window::GameWindowManager}, global_warn, log::{Logger, NewDefaultLogger}, renderer::GraphicsContext, set_global_logger, window::WindowManager, world::EngineWorld};
 use crate::{global_info, thread_pool::init_global_pool};
 pub mod window;
 pub mod messages;
@@ -163,14 +163,15 @@ impl Engine {
                     self.status = EngineStatus::Kill; 
                 }
                 Message::SetFrameRate(_) => {
-                    
+    
                 },
                 Message::ChangeTitle(tit) => {
-                    self.windows.inner.set_title(tit.to_string());
+                    self.windows.set_title(tit.to_string());
                 },
                 Message::Log(log_msg) => {
                     self.logger.log(log_msg);
                 },
+                Message::WindowEvent(k) => global_warn("Todo window event"),
             }
         }
 

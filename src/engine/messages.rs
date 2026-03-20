@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use once_cell::sync::Lazy;
 
-use crate::LogMsg;
+use crate::{LogMsg, window::events::WindowEvents};
 
 pub type MessageVecType = Lazy<Arc<Mutex<Vec<Message>>>>;
 
@@ -24,6 +24,7 @@ pub fn send_message(msg:Message){
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Message{
     SetFrameRate(f32),
+    WindowEvent(WindowEvents),
     Start,
     Stop,
     Kill,
