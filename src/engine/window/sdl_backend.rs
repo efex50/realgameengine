@@ -1,9 +1,12 @@
 use std::sync::{Arc, Mutex};
 
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
-use sdl3::{EventPump, VideoSubsystem, pixels::Color};
+use sdl3::{EventPump, VideoSubsystem, pixels::Color,event::Event as SdlEvent};
+use sdl3_sys::scancode;
 
-use crate::{PENDING_MESSAGES, engine::window::{InnerWindow, sdl_backend}, global_alert, global_warn, send_message};
+use crate::Message;
+
+use crate::{MESSAGE_SYSTEM, engine::window::{InnerWindow, sdl_backend}, global_alert, global_warn, send_message, window::events::{KeyCode, KeyMod}};
 pub type SdlContext = Arc<Mutex<sdl3::Sdl>>;
 
 
@@ -56,12 +59,19 @@ impl InnerWindow for SdlWindowManager {
             // Olayları tüket (pump) ki OS pencerenin donduğunu sanmasın
             for _event in pump_wrapper.0.poll_iter() {
                 match _event {
-                    sdl3::event::Event::Quit { timestamp } => {
-                        send_message(crate::Message::Kill);
+                    SdlEvent::Quit { timestamp } => {
+                        send_message(Message::Kill);
                         global_warn("warn: killing the game");
                     },
-                    sdl3::event::Event::KeyDown { timestamp, window_id, keycode, scancode, keymod, repeat, which, raw } => {
-                        send_message(crate::Message::WindowEvent(super::events::WindowEvents::KeyDown { timestamp, window_id, key_code: (), scancode: (), keymod: (), raw: () }));
+                    SdlEvent::KeyDown { timestamp, window_id, keycode, scancode, keymod, repeat, which, raw } => {
+                        let engine_keycode = keycode.map(KeyCode::from);
+                        let engine_scancode = scancode.map(KeyCode::from);
+                        send_message(Message::WindowEvent(super::events::WindowEvents::KeyDown { timestamp, window_id, key_code:engine_keycode , scancode:engine_scancode, keymod: KeyMod::from(keymod), raw }));
+                    },
+                    SdlEvent::KeyUp { timestamp, window_id, keycode, scancode, keymod, repeat, which, raw } => {
+                        let engine_keycode = keycode.map(KeyCode::from);
+                        let engine_scancode = scancode.map(KeyCode::from);
+                        send_message(Message::WindowEvent(super::events::WindowEvents::KeyUp { timestamp, window_id, key_code: engine_keycode, scancode: engine_scancode, keymod: KeyMod::from(keymod), raw }));
                     }
 
                     _ => {

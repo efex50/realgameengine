@@ -1,25 +1,32 @@
 use serde::{Deserialize, Serialize};
 
+pub type PhysicalKey = KeyCode;
+pub type LogicalKey = KeyCode;
+
+
 #[derive(Serialize,Deserialize,Debug)]
 pub enum WindowEvents{
     KeyUp{
         timestamp:u64,
         window_id:u32,
-        key_code:Option<KeyCode>,
-        scancode:Option<KeyCode>,
-        keymod:Option<KeyCode>,
-        raw:u32
+        key_code:Option<LogicalKey>,
+        scancode:Option<PhysicalKey>,
+        keymod:KeyMod,
+        raw:u16
     },
     KeyDown{
         timestamp:u64,
         window_id:u32,
-        key_code:Option<KeyCode>,
-        scancode:Option<KeyCode>,
-        keymod:Option<KeyCode>,
-        raw:u32
+        key_code:Option<LogicalKey>,
+        scancode:Option<PhysicalKey>,
+        keymod:KeyMod,
+        raw:u16
     }
 }
 
+pub enum WindowEvent{
+    
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash,Serialize,Deserialize)]
 pub enum KeyCode {
@@ -79,4 +86,40 @@ pub enum KeyCode {
 
     // Eşleşmeyen veya desteklenmeyen tuşlar için (Güvenli bir fallback)
     Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct KeyMod(pub u16);
+
+impl KeyMod {
+    pub const NONE: KeyMod = KeyMod(0x0000);
+    pub const LSHIFT: KeyMod = KeyMod(0x0001);
+    pub const RSHIFT: KeyMod = KeyMod(0x0002);
+    pub const LCTRL: KeyMod = KeyMod(0x0040);
+    pub const RCTRL: KeyMod = KeyMod(0x0080);
+    pub const LALT: KeyMod = KeyMod(0x0100);
+    pub const RALT: KeyMod = KeyMod(0x0200);
+    pub const LMETA: KeyMod = KeyMod(0x0400); // Windows/Command tuşu (LGUI)
+    pub const RMETA: KeyMod = KeyMod(0x0800);
+    pub const NUM: KeyMod = KeyMod(0x1000);
+    pub const CAPS: KeyMod = KeyMod(0x2000);
+    pub const MODE: KeyMod = KeyMod(0x4000);
+    pub fn contains(self,other:Self) -> bool {
+        (self.0 & other.0) == other.0
+    }
+    pub fn is_shift(self) -> bool {
+        self.contains(Self::LSHIFT) || self.contains(Self::RSHIFT)
+    }
+    pub fn is_ctrl(self) -> bool {
+        self.contains(Self::LCTRL) || self.contains(Self::RCTRL)
+    }
+    pub fn is_alt(self) -> bool {
+        self.contains(Self::LALT) || self.contains(Self::RALT)
+    }
+}
+impl std::ops::BitOr for KeyMod {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self::Output {
+        KeyMod(self.0 | rhs.0)
+    }
 }

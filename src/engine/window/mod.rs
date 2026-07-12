@@ -6,6 +6,8 @@ pub mod web_backend;
 
 #[cfg(not(target_family = "wasm"))]
 pub mod sdl_backend;
+#[cfg(not(target_family = "wasm"))]
+mod sdl_impls;
 pub mod events;
 
 use crate::engine::renderer::SurfaceManager;

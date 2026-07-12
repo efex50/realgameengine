@@ -4,7 +4,7 @@ use once_cell::sync::{Lazy, OnceCell};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::{debug_info, engine::{messages::{Message, PENDING_MESSAGES}, window::GameWindowManager}, global_warn, log::{Logger, NewDefaultLogger}, renderer::GraphicsContext, set_global_logger, window::WindowManager, world::EngineWorld};
+use crate::{debug_info, engine::{messages::{Message}, window::GameWindowManager}, global_warn, log::{Logger, NewDefaultLogger}, recv_messages, renderer::GraphicsContext, set_global_logger, window::WindowManager, world::EngineWorld};
 use crate::{global_info, thread_pool::init_global_pool};
 pub mod window;
 pub mod messages;
@@ -142,8 +142,7 @@ impl Engine {
     }
     
     pub fn handle_messages(&mut self){
-        let mut msgs = PENDING_MESSAGES.lock().unwrap();
-        for x in msgs.iter(){
+        for x in recv_messages(){
             match x {
                 #[cfg(target_family = "wasm")]
                 Message::SetCanvasId(s) => {
@@ -151,7 +150,7 @@ impl Engine {
                 }
                 Message::Null => (),
                 Message::Say(msg) =>{
-                    self.logger.info(msg);
+                    self.logger.info(&msg);
                 },
                 Message::Stop =>{
                     self.status = EngineStatus::Stopped;
@@ -169,13 +168,12 @@ impl Engine {
                     self.windows.set_title(tit.to_string());
                 },
                 Message::Log(log_msg) => {
-                    self.logger.log(log_msg);
+                    self.logger.log(&log_msg);
                 },
                 Message::WindowEvent(k) => global_warn("Todo window event"),
             }
         }
 
-        msgs.clear();
     }
 
     // YENİ: Async Grafik Bağlamı Başlatıcı

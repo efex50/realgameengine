@@ -56,9 +56,9 @@ print('sa')
         println!("{:?}",a);
         let b = world.spawn((42, false));
         println!("{:?}",b);
-        let b = world.spawn((42, false));
+        let b = world.spawn((42, false,"sa".to_string()));
         println!("{:?}",b);
-        let b = world.spawn((42, false));
+        let b = world.spawn((42, false,"so".to_string()));
         println!("{:?}",b);
         let b = world.spawn((42, false));
         println!("{:?}",b);

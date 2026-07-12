@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex, OnceLock, mpsc};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
-use crate::{PENDING_MESSAGES, thread::Jobs, thread_pool::{WorkerHandle, new_worker_global, spawn_global}};
+use crate::{MESSAGE_SYSTEM, thread::Jobs, thread_pool::{WorkerHandle, new_worker_global, spawn_global}};
 
 static GLOBAL_LOGGER: Lazy<LoggerHandle> = Lazy::new(|| {
     

@@ -4,20 +4,22 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use once_cell::sync::Lazy;
 
-use crate::{LogMsg, window::events::WindowEvents};
+use crate::{LogMsg, engine, window::events::WindowEvents};
 
-pub type MessageVecType = Lazy<Arc<Mutex<Vec<Message>>>>;
+//pub type MessageVecType = Lazy<Arc<Mutex<Vec<Message>>>>;
+pub type MessageVecType = Lazy<(flume::Sender<Message>,flume::Receiver<Message>)>;
 
-pub static PENDING_MESSAGES:MessageVecType = Lazy::new(||{
-    let v = Vec::new();
-    let v = Mutex::new(v);
-    let v = Arc::new(v);
-    return v
+pub static MESSAGE_SYSTEM:MessageVecType = Lazy::new(||{
+    let f = flume::unbounded::<Message>();
+    return f
 });
 
 pub fn send_message(msg:Message){
-    let mut msgs = PENDING_MESSAGES.lock().unwrap();
-    msgs.push(msg);
+    MESSAGE_SYSTEM.0.send(msg);
+}
+pub fn recv_messages() -> flume::Drain<'static, engine::messages::Message>{
+    let a = MESSAGE_SYSTEM.1.drain();
+    return a
 }
 
 
@@ -47,7 +49,7 @@ mod wasm_message_handler{
     pub fn send_message(message:JsValue) -> Result<(), JsValue>{
         
         let message: Message = serde_wasm_bindgen::from_value(message)?;
-        let mut msgs = PENDING_MESSAGES.lock().unwrap();
+        let mut msgs = MESSAGE_SYSTEM.lock().unwrap();
         msgs.push(message);
         Ok(())
     }
